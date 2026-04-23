@@ -1,0 +1,6 @@
+# Disable Vercel auto-deployment
+# Ignore all files to prevent deployment
+*
+
+# Except this file
+!.vercelignore
