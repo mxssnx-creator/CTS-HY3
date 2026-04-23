@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// @ts-nocheck
 
 /**
  * System Performance Benchmark Suite

@@ -90,7 +90,9 @@ export function EngineProcessingLogDialog({ connectionId: propConnectionId }: { 
         fetch('/api/engine/verify', { cache: 'no-store' })
       ])
 
-      const s = await statsRes.json()
+      const s = await monitorRes.json()
+      const connLogData = await connLogRes.json()
+      const engineData = await engineRes.json()
 
       const historicSymbols   = s.historic?.symbolsProcessed || 0
       const historicTotal     = s.historic?.symbolsTotal     || 0
@@ -129,12 +131,12 @@ export function EngineProcessingLogDialog({ connectionId: propConnectionId }: { 
           isActive,
           cycleTimeMs,
           successRate,
-          intervalsProcessed: connLog.summary?.enginePerformance?.cyclesCompleted || 0,
-          indicationsGenerated: Object.values(connLog.summary?.indicationsCounts || {}).reduce((a: number, b: unknown) => a + Number(b || 0), 0),
-          strategiesEvaluated: Object.values(connLog.summary?.strategyCounts || {}).reduce((a: number, b: any) => a + Number(b?.evaluated || 0), 0),
-          positionsCreated: connLog.summary?.enginePerformance?.totalTrades || 0,
-          isActive: engine.components?.[0]?.phases?.realtime?.processing || false,
-          lastCycleTime: connLog.summary?.enginePerformance?.cycleTimeMs || 0
+          intervalsProcessed: connLogData.summary?.enginePerformance?.cyclesCompleted || 0,
+          indicationsGenerated: Object.values(connLogData.summary?.indicationsCounts || {}).reduce((a: number, b: unknown) => a + Number(b || 0), 0),
+          strategiesEvaluated: Object.values(connLogData.summary?.strategyCounts || {}).reduce((a: number, b: any) => a + Number(b?.evaluated || 0), 0),
+          positionsCreated: connLogData.summary?.enginePerformance?.totalTrades || 0,
+          isRealtimeActive: engineData.components?.[0]?.phases?.realtime?.processing || false,
+          lastCycleTime: connLogData.summary?.enginePerformance?.cycleTimeMs || 0
         },
         performance: {
           avgCycleTimeMs:     cycleTimeMs,

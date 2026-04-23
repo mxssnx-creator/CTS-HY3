@@ -1,4 +1,4 @@
-import { redisDb } from "@/lib/redis-db"
+import { getRedisClient } from "@/lib/redis-db"
 
 /**
  * PHASE 3: Live Position Tracking System
@@ -54,7 +54,7 @@ export class PositionTracker {
       const key = `${this.POSITIONS_PREFIX}${position.connection_id}:${position.symbol}`
       const data = JSON.stringify(position)
       
-      await redisDb.set(key, data, { ex: this.TTL })
+      await (await getRedisClient()).set(key, data, { EX: this.TTL })
       console.log(`[v0] [PositionTracker] Position recorded: ${key}`)
     } catch (error) {
       console.error(`[v0] [PositionTracker] Failed to record position:`, error)
@@ -68,11 +68,11 @@ export class PositionTracker {
   async getPositions(connectionId: string): Promise<LivePosition[]> {
     try {
       const pattern = `${this.POSITIONS_PREFIX}${connectionId}:*`
-      const keys = await redisDb.keys(pattern)
+      const keys = await (await getRedisClient()).keys(pattern)
       
       const positions: LivePosition[] = []
       for (const key of keys) {
-        const data = await redisDb.get(key)
+        const data = await (await getRedisClient()).get(key)
         if (data) {
           positions.push(JSON.parse(data))
         }
@@ -92,7 +92,7 @@ export class PositionTracker {
   async getPosition(connectionId: string, symbol: string): Promise<LivePosition | null> {
     try {
       const key = `${this.POSITIONS_PREFIX}${connectionId}:${symbol}`
-      const data = await redisDb.get(key)
+      const data = await (await getRedisClient()).get(key)
       
       if (!data) {
         return null
@@ -111,7 +111,7 @@ export class PositionTracker {
   async removePosition(connectionId: string, symbol: string): Promise<void> {
     try {
       const key = `${this.POSITIONS_PREFIX}${connectionId}:${symbol}`
-      await redisDb.del(key)
+      await (await getRedisClient()).del(key)
       console.log(`[v0] [PositionTracker] Position removed: ${key}`)
     } catch (error) {
       console.error(`[v0] [PositionTracker] Failed to remove position:`, error)
@@ -126,7 +126,7 @@ export class PositionTracker {
       const key = `${this.ORDERS_PREFIX}${order.connection_id}:${order.id}`
       const data = JSON.stringify(order)
       
-      await redisDb.set(key, data, { ex: this.TTL })
+      await (await getRedisClient()).set(key, data, { EX: this.TTL })
       console.log(`[v0] [PositionTracker] Order recorded: ${key}`)
     } catch (error) {
       console.error(`[v0] [PositionTracker] Failed to record order:`, error)
@@ -140,11 +140,11 @@ export class PositionTracker {
   async getOpenOrders(connectionId: string): Promise<OrderRecord[]> {
     try {
       const pattern = `${this.ORDERS_PREFIX}${connectionId}:*`
-      const keys = await redisDb.keys(pattern)
+      const keys = await (await getRedisClient()).keys(pattern)
       
       const orders: OrderRecord[] = []
       for (const key of keys) {
-        const data = await redisDb.get(key)
+        const data = await (await getRedisClient()).get(key)
         if (data) {
           const order = JSON.parse(data)
           if (order.status === "pending" || order.status === "partially_filled") {
@@ -173,7 +173,7 @@ export class PositionTracker {
   ): Promise<void> {
     try {
       const key = `${this.ORDERS_PREFIX}${connectionId}:${orderId}`
-      const data = await redisDb.get(key)
+      const data = await (await getRedisClient()).get(key)
       
       if (!data) {
         console.warn(`[v0] [PositionTracker] Order not found: ${key}`)
@@ -188,7 +188,7 @@ export class PositionTracker {
         order.closed_at = Date.now()
       }
       
-      await redisDb.set(key, JSON.stringify(order), { ex: this.TTL })
+      await (await getRedisClient()).set(key, JSON.stringify(order), { EX: this.TTL })
       console.log(`[v0] [PositionTracker] Order updated: ${key} -> ${status}`)
     } catch (error) {
       console.error(`[v0] [PositionTracker] Failed to update order:`, error)

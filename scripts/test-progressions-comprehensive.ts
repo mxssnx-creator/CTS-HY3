@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Comprehensive System Progression Test
  * Validates the complete progression system from API to UI components

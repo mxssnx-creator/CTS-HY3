@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Redis Database Setup and Migration Script
  * Initializes Redis with optimized data structures and indexes

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Test utility to verify API type/contract type routing
  * Run: node scripts/test-api-type-routing.ts

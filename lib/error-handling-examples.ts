@@ -19,9 +19,9 @@
 /**
  * EXAMPLE 2: Wrap trade engine operation with circuit breaker
  * 
- * Before: const data = await exchange.getMarketData()
+ * Before: const data = await exchange.getMarketData(, "1m")
  * After: const data = await withExchangeErrorHandling(
- *   () => exchange.getMarketData(),
+ *   () => exchange.getMarketData(, "1m"),
  *   'getMarketData'
  * )
  */

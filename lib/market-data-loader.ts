@@ -5,7 +5,7 @@
  * KEY ARCHITECTURE:
  *   market_data:{symbol}:1m       → JSON string, full MarketData object with 250 candles (used by engine loader)
  *   market_data:{symbol}:candles  → JSON string, raw candles array (used by indication processor for history)
- *   market_data:{symbol}          → Redis hash, single latest candle (used by getMarketData() in redis-db)
+ *   market_data:{symbol}          → Redis hash, single latest candle (used by getMarketData(, "1m") in redis-db)
  */
 
 import { getClient, initRedis, getAllConnections } from "@/lib/redis-db"
@@ -204,7 +204,7 @@ export async function loadMarketDataForEngine(symbols: string[] = []): Promise<n
         await client.set(candlesKey, JSON.stringify(candles))
         await client.expire(candlesKey, 86400)
 
-        // CRITICAL: Also write latest candle to hash format so getMarketData() works
+        // CRITICAL: Also write latest candle to hash format so getMarketData(, "1m") works
         const latestCandle = candles[candles.length - 1]
         if (latestCandle) {
           const hashKey = `market_data:${symbol}`

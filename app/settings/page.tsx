@@ -344,6 +344,7 @@ interface Settings {
   activeLastPartFrom: number
   activeLastPartTo: number
   activeLastPartStep: number
+  cyclePauseMs: number
 }
 
 const initialSettings: Settings = {

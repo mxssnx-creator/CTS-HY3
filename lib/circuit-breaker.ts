@@ -44,7 +44,7 @@ export interface CircuitBreakerConfig {
  * })
  *
  * async function callExchangeAPI() {
- *   return breaker.execute(() => connector.getMarketData())
+ *   return breaker.execute(() => connector.getMarketData(, "1m"))
  * }
  * ```
  */

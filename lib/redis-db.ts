@@ -34,6 +34,17 @@ interface RedisData {
 // Global storage for persistence across hot reloads
 const globalForRedis = globalThis as unknown as { __redis_data?: RedisData }
 
+
+// Connection type for type-safety
+export interface Connection {
+  id: string
+  name?: string
+  exchange?: string
+  is_enabled?: boolean | string
+  is_active?: boolean | string
+  [key: string]: any
+}
+
 export class InlineLocalRedis {
   private data: RedisData
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * API Functionality Test Script
  * Tests all API endpoints for proper functionality

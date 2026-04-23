@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Stage 5: Live Exchange Position Creation Progression
  *

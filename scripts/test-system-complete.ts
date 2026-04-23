@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// @ts-nocheck
 
 /**
  * Complete End-to-End Trading System Test

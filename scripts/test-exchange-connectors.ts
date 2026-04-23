@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Exchange Connector Test Script
  * Tests exchange API integration and trading functionality

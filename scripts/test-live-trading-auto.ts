@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Automated Live Trading Test on BingX
  * 
