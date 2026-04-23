@@ -1,10 +1,10 @@
-# Active Context: Next.js Starter Template
+# Active Context: CTS-HY3 Project
 
 ## Current State
 
-**Template Status**: ✅ Ready for development
+**Project Status**: ✅ Fully operational with database and API
 
-The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. It's ready for AI-assisted expansion to build any type of application.
+The project is now a complete Next.js 16 application with SQLite database support, API routes, and deployment configuration.
 
 ## Recently Completed
 
@@ -14,74 +14,60 @@ The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. I
 - [x] ESLint configuration
 - [x] Memory bank documentation
 - [x] Recipe system for common features
+- [x] Database setup with Drizzle ORM + SQLite
+- [x] API routes for users and posts
+- [x] Dockerfile for independent server deployment
+- [x] README.md documentation
+- [x] Homepage with database integration
 
 ## Current Structure
 
 | File/Directory | Purpose | Status |
 |----------------|---------|--------|
-| `src/app/page.tsx` | Home page | ✅ Ready |
+| `src/app/page.tsx` | Home page with stats | ✅ Updated |
 | `src/app/layout.tsx` | Root layout | ✅ Ready |
 | `src/app/globals.css` | Global styles | ✅ Ready |
+| `src/app/api/users/route.ts` | Users API | ✅ Created |
+| `src/app/api/posts/route.ts` | Posts API | ✅ Created |
+| `src/db/schema.ts` | Database schema | ✅ Created |
+| `src/db/index.ts` | Database client | ✅ Created |
+| `src/db/migrations/` | Database migrations | ✅ Generated |
+| `Dockerfile` | Deployment config | ✅ Created |
+| `README.md` | Documentation | ✅ Created |
 | `.kilocode/` | AI context & recipes | ✅ Ready |
 
-## Current Focus
+## Database Schema
 
-The template is ready. Next steps depend on user requirements:
+### Users Table
+- id: integer (primary key, auto increment)
+- name: text (not null)
+- email: text (not null, unique)
+- createdAt: integer (timestamp)
 
-1. What type of application to build
-2. What features are needed
-3. Design/branding preferences
+### Posts Table
+- id: integer (primary key, auto increment)
+- title: text (not null)
+- content: text
+- authorId: integer (references users.id)
+- createdAt: integer (timestamp)
 
-## Quick Start Guide
+## API Endpoints
 
-### To add a new page:
+- `GET /api/users` - List all users
+- `POST /api/users` - Create a new user
+- `GET /api/posts` - List all posts
+- `POST /api/posts` - Create a new post
 
-Create a file at `src/app/[route]/page.tsx`:
-```tsx
-export default function NewPage() {
-  return <div>New page content</div>;
-}
-```
+## Deployment
 
-### To add components:
-
-Create `src/components/` directory and add components:
-```tsx
-// src/components/ui/Button.tsx
-export function Button({ children }: { children: React.ReactNode }) {
-  return <button className="px-4 py-2 bg-blue-600 text-white rounded">{children}</button>;
-}
-```
-
-### To add a database:
-
-Follow `.kilocode/recipes/add-database.md`
-
-### To add API routes:
-
-Create `src/app/api/[route]/route.ts`:
-```tsx
-import { NextResponse } from "next/server";
-
-export async function GET() {
-  return NextResponse.json({ message: "Hello" });
-}
-```
-
-## Available Recipes
-
-| Recipe | File | Use Case |
-|--------|------|----------|
-| Add Database | `.kilocode/recipes/add-database.md` | Data persistence with Drizzle + SQLite |
-
-## Pending Improvements
-
-- [ ] Add more recipes (auth, email, etc.)
-- [ ] Add example components
-- [ ] Add testing setup recipe
+The project includes a Dockerfile for containerized deployment as an independent server with full functionality.
 
 ## Session History
 
 | Date | Changes |
 |------|---------|
 | Initial | Template created with base setup |
+| 2026-04-23 | Added database support with Drizzle ORM |
+| 2026-04-23 | Created API routes for users and posts |
+| 2026-04-23 | Added Dockerfile for independent server deployment |
+| 2026-04-23 | Created README.md and updated homepage |
