@@ -1,6 +1,6 @@
 {
   "version": "3.1.0",
-  "timestamp": 1776984138674,
+  "timestamp": 1776985049957,
   "strings": {
     "_schema_version": "20",
     "_index:connections:all": "initialized",
@@ -46,7 +46,7 @@
     "_cache_optimized": "true",
     "_ttl_policies_set": "true",
     "_backup_initialized": "true",
-    "_migration_last_run": "2026-04-23T22:42:06.986Z",
+    "_migration_last_run": "2026-04-23T22:57:18.754Z",
     "_migration_total_runs": "1"
   },
   "hashes": {
@@ -54,31 +54,31 @@
       "total_configured": "0",
       "total_active": "0",
       "total_errors": "0",
-      "last_sync": "2026-04-23T22:42:06.981Z"
+      "last_sync": "2026-04-23T22:57:18.744Z"
     },
     "exchange:bybit:metadata": {
       "name": "bybit",
       "api_calls_used": "0",
       "api_rate_limit": "0",
-      "last_updated": "2026-04-23T22:42:06.981Z"
+      "last_updated": "2026-04-23T22:57:18.744Z"
     },
     "exchange:bingx:metadata": {
       "name": "bingx",
       "api_calls_used": "0",
       "api_rate_limit": "0",
-      "last_updated": "2026-04-23T22:42:06.981Z"
+      "last_updated": "2026-04-23T22:57:18.744Z"
     },
     "exchange:pionex:metadata": {
       "name": "pionex",
       "api_calls_used": "0",
       "api_rate_limit": "0",
-      "last_updated": "2026-04-23T22:42:06.981Z"
+      "last_updated": "2026-04-23T22:57:18.744Z"
     },
     "exchange:orangex:metadata": {
       "name": "orangex",
       "api_calls_used": "0",
       "api_rate_limit": "0",
-      "last_updated": "2026-04-23T22:42:06.981Z"
+      "last_updated": "2026-04-23T22:57:18.744Z"
     },
     "trades:metadata": {
       "total_trades": "0",
@@ -117,7 +117,7 @@
     "users:metadata": {
       "total_users": "1",
       "total_active_sessions": "0",
-      "last_login": "2026-04-23T22:42:06.982Z"
+      "last_login": "2026-04-23T22:57:18.745Z"
     },
     "sessions:metadata": {
       "total_sessions": "0",
@@ -129,8 +129,8 @@
       "username": "admin",
       "email": "admin@trading-engine.local",
       "role": "admin",
-      "created_at": "2026-04-23T22:42:06.982Z",
-      "last_login": "2026-04-23T22:42:06.982Z",
+      "created_at": "2026-04-23T22:57:18.745Z",
+      "last_login": "2026-04-23T22:57:18.745Z",
       "status": "active",
       "api_keys_count": "0"
     },
@@ -139,14 +139,14 @@
       "critical_events": "0",
       "warning_events": "0",
       "info_events": "0",
-      "last_event_time": "2026-04-23T22:42:06.982Z"
+      "last_event_time": "2026-04-23T22:57:18.745Z"
     },
     "system:health": {
       "status": "healthy",
       "uptime_seconds": "0",
       "memory_usage": "0",
       "cpu_usage": "0",
-      "last_check": "2026-04-23T22:42:06.982Z"
+      "last_check": "2026-04-23T22:57:18.745Z"
     },
     "system:performance": {
       "avg_response_time": "0",
@@ -169,7 +169,7 @@
     },
     "system:config": {
       "database_type": "redis",
-      "initialized_at": "2026-04-23T22:42:06.983Z",
+      "initialized_at": "2026-04-23T22:57:18.746Z",
       "version": "3.2",
       "environment": "production",
       "log_level": "info"
@@ -246,8 +246,8 @@
       "is_active_inserted": "0",
       "is_live_trade": "0",
       "is_preset_trade": "0",
-      "created_at": "2026-04-23T22:42:06.983Z",
-      "updated_at": "2026-04-23T22:42:06.987Z",
+      "created_at": "2026-04-23T22:57:18.746Z",
+      "updated_at": "2026-04-23T22:57:18.754Z",
       "is_dashboard_inserted": "1"
     },
     "connection:bingx-x01": {
@@ -270,8 +270,8 @@
       "is_active_inserted": "0",
       "is_live_trade": "0",
       "is_preset_trade": "0",
-      "created_at": "2026-04-23T22:42:06.983Z",
-      "updated_at": "2026-04-23T22:42:06.987Z",
+      "created_at": "2026-04-23T22:57:18.746Z",
+      "updated_at": "2026-04-23T22:57:18.754Z",
       "is_dashboard_inserted": "1"
     },
     "connection:binance-x01": {
@@ -294,8 +294,8 @@
       "is_active_inserted": "0",
       "is_live_trade": "0",
       "is_preset_trade": "0",
-      "created_at": "2026-04-23T22:42:06.983Z",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "created_at": "2026-04-23T22:57:18.746Z",
+      "updated_at": "2026-04-23T22:57:18.748Z"
     },
     "connection:okx-x01": {
       "id": "okx-x01",
@@ -317,8 +317,8 @@
       "is_active_inserted": "0",
       "is_live_trade": "0",
       "is_preset_trade": "0",
-      "created_at": "2026-04-23T22:42:06.983Z",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "created_at": "2026-04-23T22:57:18.746Z",
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "connection:gateio-x01": {
       "id": "gateio-x01",
@@ -340,8 +340,8 @@
       "is_active_inserted": "0",
       "is_live_trade": "0",
       "is_preset_trade": "0",
-      "created_at": "2026-04-23T22:42:06.983Z",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "created_at": "2026-04-23T22:57:18.746Z",
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "connection:kucoin-x01": {
       "id": "kucoin-x01",
@@ -363,8 +363,8 @@
       "is_active_inserted": "0",
       "is_live_trade": "0",
       "is_preset_trade": "0",
-      "created_at": "2026-04-23T22:42:06.983Z",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "created_at": "2026-04-23T22:57:18.746Z",
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "connection:mexc-x01": {
       "id": "mexc-x01",
@@ -386,8 +386,8 @@
       "is_active_inserted": "0",
       "is_live_trade": "0",
       "is_preset_trade": "0",
-      "created_at": "2026-04-23T22:42:06.984Z",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "created_at": "2026-04-23T22:57:18.746Z",
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "connection:bitget-x01": {
       "id": "bitget-x01",
@@ -409,8 +409,8 @@
       "is_active_inserted": "0",
       "is_live_trade": "0",
       "is_preset_trade": "0",
-      "created_at": "2026-04-23T22:42:06.984Z",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "created_at": "2026-04-23T22:57:18.746Z",
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "connection:pionex-x01": {
       "id": "pionex-x01",
@@ -432,8 +432,8 @@
       "is_active_inserted": "0",
       "is_live_trade": "0",
       "is_preset_trade": "0",
-      "created_at": "2026-04-23T22:42:06.984Z",
-      "updated_at": "2026-04-23T22:42:06.987Z",
+      "created_at": "2026-04-23T22:57:18.746Z",
+      "updated_at": "2026-04-23T22:57:18.754Z",
       "is_dashboard_inserted": "1"
     },
     "connection:orangex-x01": {
@@ -456,8 +456,8 @@
       "is_active_inserted": "0",
       "is_live_trade": "0",
       "is_preset_trade": "0",
-      "created_at": "2026-04-23T22:42:06.984Z",
-      "updated_at": "2026-04-23T22:42:06.987Z",
+      "created_at": "2026-04-23T22:57:18.746Z",
+      "updated_at": "2026-04-23T22:57:18.754Z",
       "is_dashboard_inserted": "1"
     },
     "connection:huobi-x01": {
@@ -480,8 +480,8 @@
       "is_active_inserted": "0",
       "is_live_trade": "0",
       "is_preset_trade": "0",
-      "created_at": "2026-04-23T22:42:06.984Z",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "created_at": "2026-04-23T22:57:18.746Z",
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "settings:risk-management": {
       "enabled": "false",
@@ -510,7 +510,7 @@
       "last_indication_count": "0",
       "last_strategy_count": "0",
       "symbols_count": "0",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "progression:bingx-x01": {
       "cycles_completed": "0",
@@ -524,7 +524,7 @@
       "last_indication_count": "0",
       "last_strategy_count": "0",
       "symbols_count": "0",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "progression:binance-x01": {
       "cycles_completed": "0",
@@ -538,7 +538,7 @@
       "last_indication_count": "0",
       "last_strategy_count": "0",
       "symbols_count": "0",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "progression:okx-x01": {
       "cycles_completed": "0",
@@ -552,7 +552,7 @@
       "last_indication_count": "0",
       "last_strategy_count": "0",
       "symbols_count": "0",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "progression:gateio-x01": {
       "cycles_completed": "0",
@@ -566,7 +566,7 @@
       "last_indication_count": "0",
       "last_strategy_count": "0",
       "symbols_count": "0",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "progression:kucoin-x01": {
       "cycles_completed": "0",
@@ -580,7 +580,7 @@
       "last_indication_count": "0",
       "last_strategy_count": "0",
       "symbols_count": "0",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "progression:mexc-x01": {
       "cycles_completed": "0",
@@ -594,7 +594,7 @@
       "last_indication_count": "0",
       "last_strategy_count": "0",
       "symbols_count": "0",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "progression:bitget-x01": {
       "cycles_completed": "0",
@@ -608,7 +608,7 @@
       "last_indication_count": "0",
       "last_strategy_count": "0",
       "symbols_count": "0",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "updated_at": "2026-04-23T22:57:18.749Z"
     },
     "progression:pionex-x01": {
       "cycles_completed": "0",
@@ -622,7 +622,7 @@
       "last_indication_count": "0",
       "last_strategy_count": "0",
       "symbols_count": "0",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "updated_at": "2026-04-23T22:57:18.751Z"
     },
     "progression:orangex-x01": {
       "cycles_completed": "0",
@@ -636,7 +636,7 @@
       "last_indication_count": "0",
       "last_strategy_count": "0",
       "symbols_count": "0",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "updated_at": "2026-04-23T22:57:18.751Z"
     },
     "progression:huobi-x01": {
       "cycles_completed": "0",
@@ -650,7 +650,7 @@
       "last_indication_count": "0",
       "last_strategy_count": "0",
       "symbols_count": "0",
-      "updated_at": "2026-04-23T22:42:06.986Z"
+      "updated_at": "2026-04-23T22:57:18.751Z"
     }
   },
   "sets": {
@@ -715,7 +715,7 @@
   "sorted_sets": {},
   "ttl": {},
   "requestStats": {
-    "lastSecond": 1776984126,
+    "lastSecond": 1776985038,
     "requestCount": 323,
     "operationsPerSecond": 0
   }

@@ -89,6 +89,9 @@ export class InlineLocalRedis {
       }
       
       const data = await fs.readFile(PERSISTENCE_FILE, 'utf8')
+      if (!data || data.trim() === '') {
+        return false
+      }
       const snapshot = JSON.parse(data)
       
       this.data.strings = new Map(Object.entries(snapshot.strings || {}))
@@ -2098,4 +2101,49 @@ export function saveDatabaseSnapshotSync(): boolean {
   const client = getRedisClient()
   client.saveToDiskSync()
   return true
+}
+
+// ========== Missing Exports for database.ts ==========
+
+export async function createTrade(data: any): Promise<any> {
+  const client = getRedisClient()
+  const id = data.id || `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  const tradeData = {
+    ...data,
+    id,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+  await client.hset(`trade:${id}`, tradeData)
+  return tradeData
+}
+
+export async function updateTrade(id: string, updates: any): Promise<any> {
+  const client = getRedisClient()
+  const existing = await client.hgetall(`trade:${id}`)
+  if (!existing || Object.keys(existing).length === 0) {
+    return null
+  }
+  const updated = {
+    ...existing,
+    ...updates,
+    updated_at: new Date().toISOString(),
+  }
+  await client.hset(`trade:${id}`, updated)
+  return updated
+}
+
+export async function updatePosition(id: string, updates: any): Promise<any> {
+  const client = getRedisClient()
+  const existing = await client.hgetall(`position:${id}`)
+  if (!existing || Object.keys(existing).length === 0) {
+    return null
+  }
+  const updated = {
+    ...existing,
+    ...updates,
+    updated_at: new Date().toISOString(),
+  }
+  await client.hset(`position:${id}`, updated)
+  return updated
 }
