@@ -1,7 +1,7 @@
 FROM node:18-alpine
 
-# Install dependencies for native modules
-RUN apk add --no-cache libc6-compat python3 make g++
+# Install dependencies for native modules and redis
+RUN apk add --no-cache libc6-compat python3 make g++ redis
 
 WORKDIR /app
 
@@ -13,6 +13,9 @@ RUN npm ci --only=production && npm cache clean --force
 
 # Copy application code
 COPY . .
+
+# Create data directory for persistence
+RUN mkdir -p /app/data && chown -R nodejs:nodejs /app/data
 
 # Build the application
 RUN npm run build
@@ -31,10 +34,12 @@ EXPOSE 3001
 # Set environment
 ENV NODE_ENV=production
 ENV PORT=3001
+ENV REDIS_PERSISTENCE=true
+ENV REDIS_SNAPSHOT_PATH=./data/redis-snapshot.json
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3001/health || exit 1
 
-# Start the application
-CMD ["npm", "start"]
+# Start Redis and the application
+CMD ["sh", "-c", "redis-server --daemonize yes --appendonly yes --dir /app/data && npm start"]

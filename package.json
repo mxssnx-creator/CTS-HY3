@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "start": "next start -p 3002",
-    "vercel-build": "next build"
+    "vercel-build": "next build",
+    "independent-server": "bash independent-server-start.sh"
   },
   "dependencies": {
     "@esbuild/linux-x64": "^0.28.0",

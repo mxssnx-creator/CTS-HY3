@@ -9,7 +9,12 @@
  */
 
 // Force webpack cache invalidation
-const REDIS_DB_VERSION = "3.0.0"
+const REDIS_DB_VERSION = "3.1.0"
+
+// Persistence configuration
+const PERSISTENCE_FILE = process.env.REDIS_SNAPSHOT_PATH || "./data/redis-snapshot.json"
+const PERSISTENCE_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+const PERSISTENCE_ENABLED = process.env.REDIS_PERSISTENCE !== "false"
 void REDIS_DB_VERSION
 
 interface RedisData {
@@ -70,10 +75,126 @@ export class InlineLocalRedis {
     this.startPersistence();
   }
 
-  async loadFromDisk(): Promise<boolean> { return false }
-  async startPersistence(): Promise<boolean> { return false }
-  async saveToDisk(): Promise<boolean> { return false }
-  saveToDiskSync(): boolean { return false }
+  async loadFromDisk(): Promise<boolean> {
+    if (!PERSISTENCE_ENABLED) return false
+    try {
+      const { promises: fs } = await import('fs')
+      const path = await import('path')
+      const dir = path.dirname(PERSISTENCE_FILE)
+      
+      try {
+        await fs.access(PERSISTENCE_FILE, fs.constants.F_OK)
+      } catch {
+        return false
+      }
+      
+      const data = await fs.readFile(PERSISTENCE_FILE, 'utf8')
+      const snapshot = JSON.parse(data)
+      
+      this.data.strings = new Map(Object.entries(snapshot.strings || {}))
+      this.data.hashes = new Map(Object.entries(snapshot.hashes || {}))
+      this.data.sets = new Map(
+        Object.entries(snapshot.sets || {}).map(([k, v]) => [k, new Set(v)])
+      )
+      this.data.lists = new Map(Object.entries(snapshot.lists || {}))
+      this.data.sorted_sets = new Map(Object.entries(snapshot.sorted_sets || {}))
+      this.data.ttl = new Map(Object.entries(snapshot.ttl || {}))
+      
+      if (snapshot.requestStats) {
+        this.data.requestStats = snapshot.requestStats
+      }
+      
+      console.log('[v0] [Redis] Loaded snapshot')
+      return true
+    } catch (error) {
+      console.error('[v0] [Redis] Failed to load snapshot:', error)
+      return false
+    }
+  }
+
+  async startPersistence(): Promise<boolean> {
+    if (!PERSISTENCE_ENABLED) return false
+    
+    await this.saveToDisk()
+    
+    setInterval(async () => {
+      await this.saveToDisk()
+    }, PERSISTENCE_INTERVAL_MS)
+    
+    process.on('SIGINT', async () => {
+      await this.saveToDisk()
+      process.exit(0)
+    })
+    
+    process.on('SIGTERM', async () => {
+      await this.saveToDisk()
+      process.exit(0)
+    })
+    
+    return true
+  }
+
+  async saveToDisk(): Promise<boolean> {
+    if (!PERSISTENCE_ENABLED) return false
+    try {
+      const { promises: fs } = await import('fs')
+      const path = await import('path')
+      const dir = path.dirname(PERSISTENCE_FILE)
+      
+      await fs.mkdir(dir, { recursive: true })
+      
+      const snapshot = {
+        version: REDIS_DB_VERSION,
+        timestamp: Date.now(),
+        strings: Object.fromEntries(this.data.strings),
+        hashes: Object.fromEntries(this.data.hashes),
+        sets: Object.fromEntries(
+          Array.from(this.data.sets.entries()).map(([k, v]) => [k, Array.from(v)])
+        ),
+        lists: Object.fromEntries(this.data.lists),
+        sorted_sets: Object.fromEntries(this.data.sorted_sets),
+        ttl: Object.fromEntries(this.data.ttl),
+        requestStats: this.data.requestStats,
+      }
+      
+      await fs.writeFile(PERSISTENCE_FILE, JSON.stringify(snapshot, null, 2))
+      return true
+    } catch (error) {
+      console.error('[v0] [Redis] Failed to save snapshot:', error)
+      return false
+    }
+  }
+
+  saveToDiskSync(): boolean {
+    if (!PERSISTENCE_ENABLED) return false
+    try {
+      const fs = require('fs')
+      const path = require('path')
+      const dir = path.dirname(PERSISTENCE_FILE)
+      
+      fs.mkdirSync(dir, { recursive: true })
+      
+      const snapshot = {
+        version: REDIS_DB_VERSION,
+        timestamp: Date.now(),
+        strings: Object.fromEntries(this.data.strings),
+        hashes: Object.fromEntries(this.data.hashes),
+        sets: Object.fromEntries(
+          Array.from(this.data.sets.entries()).map(([k, v]) => [k, Array.from(v)])
+        ),
+        lists: Object.fromEntries(this.data.lists),
+        sorted_sets: Object.fromEntries(this.data.sorted_sets),
+        ttl: Object.fromEntries(this.data.ttl),
+        requestStats: this.data.requestStats,
+      }
+      
+      fs.writeFileSync(PERSISTENCE_FILE, JSON.stringify(snapshot, null, 2))
+      return true
+    } catch (error) {
+      console.error('[v0] [Redis] Failed to save snapshot sync:', error)
+      return false
+    }
+  }
   
   private startTTLCleanup(): void {
     // DISABLED: Automatic TTL cleanup causing all data to be deleted every 60 seconds
