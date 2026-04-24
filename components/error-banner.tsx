@@ -2,6 +2,7 @@
 
 import { useErrorContext, getErrorDisplay, getErrorSeverity } from "@/lib/error-context"
 import { ErrorCode } from "@/lib/error-handling"
+import type { AppError } from "@/lib/error-context"
 import { X, AlertTriangle, AlertCircle, Info, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
@@ -13,7 +14,7 @@ export function ErrorBanner() {
   // Show recent undismissed errors
   useEffect(() => {
     const recent = errors
-      .filter((e) => !e.dismissed)
+      .filter((e: AppError) => !e.dismissed)
       .slice(-3)
       .reverse()
     setVisibleErrors(recent)
@@ -25,7 +26,7 @@ export function ErrorBanner() {
 
   return (
     <div className="fixed top-0 left-0 right-0 z-[100] p-2 space-y-2">
-      {visibleErrors.map((error) => {
+      {visibleErrors.map((error: AppError) => {
         const display = getErrorDisplay(error.code)
         const severity = getErrorSeverity(error.code)
         const isCritical = severity === "critical"
@@ -66,16 +67,16 @@ export function ErrorBanner() {
 export function ErrorHint() {
   const { hasErrors, criticalErrors, errors } = useErrorContext()
 
-  const undismissedErrors = errors.filter((e) => !e.dismissed)
+  const undismissedErrors = errors.filter((e: AppError) => !e.dismissed)
   const errorCount = undismissedErrors.length
 
   if (!hasErrors || errorCount === 0) {
     return null
   }
 
-  const highestSeverity = undismissedErrors.reduce((max, e) => {
+  const highestSeverity = undismissedErrors.reduce((max: string, e: AppError) => {
     const sev = getErrorSeverity(e.code)
-    const order = { low: 0, medium: 1, high: 2, critical: 3 }
+    const order: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 }
     return order[sev] > order[max] ? sev : max
   }, "low" as ReturnType<typeof getErrorSeverity>)
 

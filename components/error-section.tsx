@@ -2,6 +2,7 @@
 
 import { useErrorContext, getErrorDisplay, getErrorSeverity } from "@/lib/error-context"
 import { ErrorCode } from "@/lib/error-handling"
+import type { AppError } from "@/lib/error-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,14 +15,14 @@ export function ErrorSection() {
   const [expandedError, setExpandedError] = useState<string | null>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
 
-  const undismissedErrors = errors.filter((e) => !e.dismissed)
+  const undismissedErrors = errors.filter((e: AppError) => !e.dismissed)
 
   if (undismissedErrors.length === 0) {
     return null
   }
 
-  const sortedErrors = [...undismissedErrors].sort((a, b) => {
-    const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
+  const sortedErrors = [...undismissedErrors].sort((a: AppError, b: AppError) => {
+    const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
     const aSev = severityOrder[getErrorSeverity(a.code)]
     const bSev = severityOrder[getErrorSeverity(b.code)]
     if (aSev !== bSev) return aSev - bSev
@@ -29,7 +30,7 @@ export function ErrorSection() {
   })
 
   const criticalCount = undismissedErrors.filter(
-    (e) => getErrorSeverity(e.code) === "critical"
+    (e: AppError) => getErrorSeverity(e.code) === "critical"
   ).length
 
   return (
