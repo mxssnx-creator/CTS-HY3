@@ -11,6 +11,9 @@
 - [x] Updated health-check.sh for comprehensive service verification
 - [x] Implemented persistence for InlineLocalRedis (loadFromDisk, saveToDisk, startPersistence)
 - [x] Added persistence configuration (REDIS_SNAPSHOT_PATH, REDIS_PERSISTENCE)
+- [x] Fixed race condition in Redis initialization (production mode had lower counts/DB keys/activity)
+  - Root cause: loadFromDisk() called without await in constructor, startPersistence() immediately saved empty data
+  - Fix: Refactored to use init() method that properly awaits loadFromDisk() before startPersistence()
 
 ### Current Focus
 - Complete deployment system with Database (local Redis), persistence, init and functionality

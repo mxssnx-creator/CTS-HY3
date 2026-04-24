@@ -32,7 +32,11 @@ interface RedisData {
 }
 
 // Global storage for persistence across hot reloads
-const globalForRedis = globalThis as unknown as { __redis_data?: RedisData }
+const globalForRedis = globalThis as unknown as { 
+  __redis_data?: RedisData
+  __redis_data_loaded?: boolean
+  __redis_persistence_started?: boolean
+}
 
 
 // Connection type for type-safety
@@ -65,11 +69,6 @@ export class InlineLocalRedis {
           operationsPerSecond: 0,
         },
       }
-      
-      // Try to load from disk snapshot if available
-      this.loadFromDisk().catch(() => {
-        // Ignore load errors - start with empty database
-      });
     }
     
     // Ensure ttl map exists for older data structures
@@ -81,9 +80,20 @@ export class InlineLocalRedis {
     
     // Run cleanup every 60 seconds to remove expired keys
     this.startTTLCleanup();
+  }
+
+  async init(): Promise<void> {
+    // Load from disk snapshot if available (first time only)
+    if (!globalForRedis.__redis_data_loaded) {
+      globalForRedis.__redis_data_loaded = true
+      await this.loadFromDisk()
+    }
     
-    // Schedule periodic disk snapshots every 5 minutes
-    this.startPersistence();
+    // Schedule periodic disk snapshots every 5 minutes (after data is loaded)
+    if (!globalForRedis.__redis_persistence_started) {
+      globalForRedis.__redis_persistence_started = true
+      await this.startPersistence()
+    }
   }
 
   async loadFromDisk(): Promise<boolean> {
@@ -108,7 +118,7 @@ export class InlineLocalRedis {
       this.data.strings = new Map(Object.entries(snapshot.strings || {}))
       this.data.hashes = new Map(Object.entries(snapshot.hashes || {}))
       this.data.sets = new Map(
-        Object.entries(snapshot.sets || {}).map(([k, v]) => [k, new Set(v)])
+        Object.entries(snapshot.sets || {}).map(([k, v]) => [k, new Set(v as string[])])
       )
       this.data.lists = new Map(Object.entries(snapshot.lists || {}))
       this.data.sorted_sets = new Map(Object.entries(snapshot.sorted_sets || {}))
@@ -691,7 +701,7 @@ export class InlineLocalRedis {
   }
 
   async load(): Promise<void> {
-    // No-op: data is already in global memory
+    await this.init()
   }
 
   async cleanupExpiredKeysPublic(): Promise<number> {
@@ -806,7 +816,7 @@ export async function initRedis(): Promise<void> {
 
   if (!redisInstance) {
     redisInstance = new InlineLocalRedis()
-    await redisInstance.load()
+    await redisInstance.init()
   }
 
   isConnected = true
