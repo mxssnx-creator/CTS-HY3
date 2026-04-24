@@ -8,16 +8,27 @@ import "./trade-engine/indication-processor-patch"
 
 const COORDINATOR_VERSION = "4.1.0"
 
-// Force clear stale engine instances on version change
+// Force clear stale engine instances on version change (only in production or explicit version change)
 const coordGlobal = globalThis as unknown as { 
   __coordinator_version?: string
   __global_coordinator?: unknown
+  __hmr_timestamp?: number
 }
 
-if (coordGlobal.__coordinator_version !== COORDINATOR_VERSION) {
+// Skip version check during HMR (development) - only clear on explicit version change
+const isHMR = process.env.NODE_ENV === "development" && 
+  coordGlobal.__hmr_timestamp && 
+  (Date.now() - coordGlobal.__hmr_timestamp) < 5000
+
+if (!isHMR && coordGlobal.__coordinator_version !== COORDINATOR_VERSION) {
   console.log(`[v0] Coordinator version changed from ${coordGlobal.__coordinator_version} to ${COORDINATOR_VERSION}, clearing stale engines...`)
   coordGlobal.__global_coordinator = undefined
   coordGlobal.__coordinator_version = COORDINATOR_VERSION
+}
+
+// Track HMR timestamp to avoid clearing on hot reload
+if (process.env.NODE_ENV === "development") {
+  coordGlobal.__hmr_timestamp = Date.now()
 }
 
 console.log(`[v0] Global Trade Engine V${COORDINATOR_VERSION} loading with cache patch...`)
@@ -116,8 +127,9 @@ export class GlobalTradeEngineCoordinator {
   /**
    * Start engine for a specific connection
    * PHASE 1 FIX: Added startup lock to prevent duplicate engines
+   * PHASE 2 FIX: Stop other connection progressions first (per user requirement)
    */
-  async startEngine(connectionId: string, config: EngineConfig): Promise<void> {
+  async startEngine(connectionId: string, config: EngineConfig, stopOthers: boolean = true): Promise<void> {
     // Step 1: Check if already starting
     if (this.startingEngines.has(connectionId)) {
       console.log(`[v0] [STARTUP LOCK] Engine already starting for ${connectionId}, skipping duplicate start request`)
@@ -148,7 +160,23 @@ export class GlobalTradeEngineCoordinator {
     console.log(`[v0] [STARTUP LOCK] Added ${connectionId} to startup lock`)
 
     try {
-      // Step 4: Initialize engine if needed
+      // Step 4: Stop OTHER connection progressions first (if requested)
+      if (stopOthers) {
+        const otherConnectionIds = Array.from(this.engineManagers.keys()).filter(id => id !== connectionId)
+        for (const otherId of otherConnectionIds) {
+          try {
+            const otherManager = this.engineManagers.get(otherId)
+            if (otherManager?.isEngineRunning) {
+              console.log(`[v0] [STARTUP] Stopping other connection ${otherId} before starting ${connectionId}`)
+              await this.stopEngine(otherId)
+            }
+          } catch (err) {
+            console.warn(`[v0] [STARTUP] Failed to stop other connection ${otherId}:`, err)
+          }
+        }
+      }
+
+      // Step 5: Initialize engine if needed
       let manager = this.engineManagers.get(connectionId)
       if (!manager) {
         console.log(`[v0] Starting TradeEngine for connection: ${connectionId}`)
@@ -157,14 +185,38 @@ export class GlobalTradeEngineCoordinator {
         console.log(`[v0] [STARTUP LOCK] Reusing existing engine manager for: ${connectionId}`)
       }
 
-      // Step 5: Start the engine
+      // Step 6: Start the engine
       await manager.start(config)
       console.log(`[v0] [STARTUP LOCK] TradeEngine successfully started for connection: ${connectionId}`)
     } finally {
-      // Step 6: Remove from lock set (always, even on error)
+      // Step 7: Remove from lock set (always, even on error)
       this.startingEngines.delete(connectionId)
       console.log(`[v0] [STARTUP LOCK] Removed ${connectionId} from startup lock`)
     }
+  }
+
+  /**
+   * Stop all engines except the specified connectionId
+   * Used by Quick Start to ensure only one main connection runs at a time
+   */
+  async stopAllExcept(connectionId: string): Promise<void> {
+    console.log(`[v0] [Coordinator] Stopping all engines except ${connectionId}...`)
+    
+    const idsToStop = Array.from(this.engineManagers.keys()).filter(id => id !== connectionId)
+    
+    for (const id of idsToStop) {
+      try {
+        const manager = this.engineManagers.get(id)
+        if (manager?.isEngineRunning) {
+          console.log(`[v0] [Coordinator] Stopping engine for ${id}...`)
+          await this.stopEngine(id)
+        }
+      } catch (error) {
+        console.warn(`[v0] [Coordinator] Failed to stop engine ${id}:`, error)
+      }
+    }
+    
+    console.log(`[v0] [Coordinator] Finished stopping other engines. Only ${connectionId} remains.`)
   }
 
   /**

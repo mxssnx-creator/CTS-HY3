@@ -10,28 +10,22 @@
 
 const _ENGINE_BUILD_VERSION = "11.0.0"
 
-// CRITICAL FIX: Define totalStrategiesEvaluated in global scope as fallback
-// This allows stale closures from old code to continue without ReferenceError
-// The variable is defined but not used - new code doesn't reference it
-declare global {
-  // eslint-disable-next-line no-var
-  var totalStrategiesEvaluated: number
-}
-if (typeof globalThis.totalStrategiesEvaluated === "undefined") {
-  globalThis.totalStrategiesEvaluated = 0
-}
-
 // Type for global engine state
 interface EngineGlobalState {
   __engine_version?: string
   __engine_timers?: Set<ReturnType<typeof setInterval>>
   __engine_instances?: Map<string, unknown>
+  __hmr_timestamp?: number
 }
 
 const engineGlobal = (typeof globalThis !== "undefined" ? globalThis : {}) as EngineGlobalState
 
-// Force clear ALL old timers when module version changes
-if (engineGlobal.__engine_version !== _ENGINE_BUILD_VERSION) {
+// Skip version check during HMR (only clear on explicit version change in production)
+const isHMREngine = process.env.NODE_ENV === "development" && 
+  engineGlobal.__hmr_timestamp && 
+  (Date.now() - engineGlobal.__hmr_timestamp) < 5000
+
+if (!isHMREngine && engineGlobal.__engine_version !== _ENGINE_BUILD_VERSION) {
   console.log(`[v0] Engine version change: ${engineGlobal.__engine_version} -> ${_ENGINE_BUILD_VERSION}, clearing stale timers...`)
   
   // Clear any registered timers from old version
@@ -49,6 +43,15 @@ if (engineGlobal.__engine_version !== _ENGINE_BUILD_VERSION) {
   }
   
   engineGlobal.__engine_version = _ENGINE_BUILD_VERSION
+}
+
+// Track HMR timestamp to avoid clearing on hot reload
+if (process.env.NODE_ENV === "development") {
+  engineGlobal.__hmr_timestamp = Date.now()
+}
+
+if (typeof globalThis.totalStrategiesEvaluated === "undefined") {
+  globalThis.totalStrategiesEvaluated = 0
 }
 
 // Initialize timer set for this version

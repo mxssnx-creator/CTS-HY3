@@ -74,82 +74,57 @@ export function StatisticsOverview({ connections }: StatisticsOverviewProps) {
       }
 
       const statsPromises = connectionsList.map(async (conn) => {
-        // Fetch engine stats (actual cycle counts and indication/strategy records)
-        let engineStatsData: any = null
-        try {
-          const engineRes = await fetch(`/api/trading/engine-stats?connection_id=${conn.id}`)
-          if (engineRes.ok) {
-            engineStatsData = await engineRes.json()
-          }
-        } catch {
-          // Engine stats may not be available yet
-        }
-
-        // Fetch position stats (may not exist yet if engine is still in prehistoric phase)
-        let posData: any = { stats: {} }
-        try {
-          const response = await fetch(`/api/positions/stats?connection_id=${conn.id}`)
-          if (response.ok) {
-            posData = await response.json()
-          }
-        } catch {
-          // Positions API may not be available yet - use defaults
-        }
-
-        // Fetch progression data for this connection (always available)
-        let progressionData: any = {}
-        let stateData: any = {}
-        let metricsData: any = {}
+        // Use ONLY the progression API - it returns comprehensive data
+        let progressionData: any = null
         try {
           const progResponse = await fetch(`/api/connections/progression/${conn.id}`)
           if (progResponse.ok) {
-            const progResult = await progResponse.json()
-            progressionData = progResult.progression || {}
-            stateData = progResult.state || {}
-            metricsData = progResult.metrics || {}
+            const result = await progResponse.json()
+            progressionData = result
           }
         } catch {
           // Progression may not be available yet
         }
 
-        // Use engine stats for actual cycle counts
-        const indicationCycleCount = engineStatsData?.indications?.cycleCount || metricsData.indicationCycleCount || 0
-        const strategyCycleCount = engineStatsData?.strategies?.cycleCount || metricsData.strategyCycleCount || 0
-        const symbolCount = engineStatsData?.metadata?.symbolCount || 1
+        if (!progressionData || !progressionData.success) {
+          return null
+        }
+
+        const { state, metrics, progression } = progressionData
 
         return {
           connectionId: conn.id,
           connectionName: conn.name,
           indications: {
-            base: engineStatsData?.indications?.types?.base || engineStatsData?.indications?.base || 0,
-            main: engineStatsData?.indications?.types?.main || engineStatsData?.indications?.main || 0,
-            real: engineStatsData?.indications?.types?.real || engineStatsData?.indications?.real || 0,
-            live: engineStatsData?.indications?.types?.live || engineStatsData?.indications?.live || 0,
-            total: engineStatsData?.indications?.totalRecords || 0,
-            evaluated: indicationCycleCount * symbolCount,
-            cycleCount: indicationCycleCount,
+            base: metrics?.indicationsCount || 0,
+            main: 0,
+            real: metrics?.indicationsCount || 0,
+            live: 0,
+            total: metrics?.indicationsCount || 0,
+            evaluated: (metrics?.indicationCycleCount || 0) * (metrics?.intervalsProcessed || 1),
+            cycleCount: metrics?.indicationCycleCount || 0,
           },
           strategies: {
-            base: engineStatsData?.strategies?.types?.base || engineStatsData?.strategies?.base || 0,
-            main: engineStatsData?.strategies?.types?.main || engineStatsData?.strategies?.main || 0,
-            real: engineStatsData?.strategies?.types?.real || engineStatsData?.strategies?.real || 0,
-            live: engineStatsData?.strategies?.types?.live || engineStatsData?.strategies?.live || 0,
-            total: engineStatsData?.strategies?.totalRecords || 0,
-            evaluated: strategyCycleCount,
-            cycleCount: strategyCycleCount,
-            drawdown_max: parseFloat(posData.stats?.largest_loss || "0"),
-            drawdown_time_hours: parseFloat(posData.stats?.avg_holding_time_hours || "0"),
+            base: 0,
+            main: 0,
+            real: metrics?.strategiesCount || 0,
+            live: 0,
+            total: metrics?.strategiesCount || 0,
+            evaluated: metrics?.strategyCycleCount || 0,
+            cycleCount: metrics?.strategyCycleCount || 0,
+            drawdown_max: 0,
+            drawdown_time_hours: 0,
           },
           profit_factor: {
-            last_5: stateData.cycleSuccessRate ? stateData.cycleSuccessRate / 50 : 0,
-            last_15: stateData.cycleSuccessRate ? stateData.cycleSuccessRate / 45 : 0,
-            last_50: stateData.cycleSuccessRate ? stateData.cycleSuccessRate / 40 : 0,
+            last_5: state?.cycleSuccessRate ? state.cycleSuccessRate / 50 : 0,
+            last_15: state?.cycleSuccessRate ? state.cycleSuccessRate / 45 : 0,
+            last_50: state?.cycleSuccessRate ? state.cycleSuccessRate / 40 : 0,
           },
           positions: {
-            total_evaluated: posData.stats?.total_positions || stateData.totalTrades || 0,
-            winning: posData.stats?.win_count || stateData.successfulTrades || 0,
-            losing: posData.stats?.loss_count || stateData.failedCycles || 0,
-            win_rate: posData.stats?.win_rate || stateData.cycleSuccessRate || 0,
+            total_evaluated: state?.totalTrades || 0,
+            winning: state?.successfulTrades || 0,
+            losing: (state?.totalTrades || 0) - (state?.successfulTrades || 0),
+            win_rate: state?.tradeSuccessRate || 0,
           },
         } as any
       })

@@ -421,7 +421,12 @@ export async function POST(request: Request) {
         try {
           const settings = await loadSettingsAsync()
           const coordinator = getGlobalTradeEngineCoordinator()
+           
+          // CRITICAL: Stop all other connection progressions before starting this one
+          console.log(`${LOG_PREFIX}: Stopping other connection progressions before starting ${connection.name}...`)
+          await coordinator.stopAllExcept(connectionId)
           
+          // Start engine with stopOthers=true (redundant but safe)
           await coordinator.startEngine(connectionId, {
             connectionId,
             connection_name: connection.name,
@@ -430,7 +435,7 @@ export async function POST(request: Request) {
             indicationInterval: settings.mainEngineIntervalMs ? settings.mainEngineIntervalMs / 1000 : 5,
             strategyInterval: settings.strategyUpdateIntervalMs ? settings.strategyUpdateIntervalMs / 1000 : 10,
             realtimeInterval: settings.realtimeIntervalMs ? settings.realtimeIntervalMs / 1000 : 3,
-          })
+          }, true)
           
           // Ensure connection is marked as live trade enabled
           await updateConnection(connectionId, {
