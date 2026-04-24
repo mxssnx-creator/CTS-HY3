@@ -177,6 +177,11 @@ export class TradeEngineManager {
   private realtimeProcessor: RealtimeProcessor
   private startTime?: Date
 
+  // Track last cycle time for watchdog monitoring
+  private lastIndicationCycleTime = 0
+  private lastStrategyCycleTime = 0
+  private lastRealtimeCycleTime = 0
+
   private componentHealth: {
     indications: ComponentHealth
     strategies: ComponentHealth
@@ -928,6 +933,9 @@ export class TradeEngineManager {
         return
       }
 
+      // CRASH RECOVERY: Update last cycle time at start of successful tick
+      this.lastIndicationCycleTime = startTime
+
       try {
         const symbols = await this.getSymbols()
         if (!symbols || symbols.length === 0) {
@@ -1147,22 +1155,25 @@ export class TradeEngineManager {
       const startTime = Date.now()
       let producedStrategies = false
 
-      if (startTime - prehistoricDoneCheckedAt > 3000) {
-        prehistoricDoneCheckedAt = startTime
-        void refreshPrehistoricDone()
-      }
-
-      // V8: Early exit if this timer is from a stale module version
-      if (engineGlobal.__engine_version !== _ENGINE_BUILD_VERSION) {
-        console.log(`[v0] Stale strategy timer detected, self-clearing...`)
-        if (this.strategyTimer) {
-          clearTimeout(this.strategyTimer)
-          unregisterEngineTimer(this.strategyTimer)
-        }
-        return
-      }
-
       try {
+        if (startTime - prehistoricDoneCheckedAt > 3000) {
+          prehistoricDoneCheckedAt = startTime
+          void refreshPrehistoricDone()
+        }
+
+        // V8: Early exit if this timer is from a stale module version
+        if (engineGlobal.__engine_version !== _ENGINE_BUILD_VERSION) {
+          console.log(`[v0] Stale strategy timer detected, self-clearing...`)
+          if (this.strategyTimer) {
+            clearTimeout(this.strategyTimer)
+            unregisterEngineTimer(this.strategyTimer)
+          }
+          return
+        }
+
+        // CRASH RECOVERY: Update last cycle time at start of successful tick
+        this.lastStrategyCycleTime = startTime
+
         const symbols = await this.getSymbols()
         const strategyResults = await Promise.all(
           symbols.map((symbol) =>
@@ -1356,6 +1367,7 @@ export class TradeEngineManager {
 
     const tick = async () => {
       if (!this.isRunning) return
+      
       // Default outcome: "empty". Upgraded to "productive" when the
       // processor reports real work, or demoted to "gated" when the
       // prehistoric flag hasn't flipped yet.
@@ -1378,6 +1390,9 @@ export class TradeEngineManager {
         prehistoricDoneCheckedAt = startTime
         await refreshPrehistoricDone()
       }
+
+      // CRASH RECOVERY: Update last cycle time at start of successful tick
+      this.lastRealtimeCycleTime = startTime
 
       // ── Prehistoric advisory (P0-5) ──────────────────────────────
       // The realtime loop USED to hard-skip ticks until the
@@ -1773,11 +1788,22 @@ export class TradeEngineManager {
 
   /**
    * Get engine status (Redis-based)
+   * Enhanced with last cycle times for watchdog monitoring
    */
   async getStatus() {
     try {
       const stateKey = `trade_engine_state:${this.connectionId}`
       const state = (await getSettings(stateKey)) || {}
+      const now = new Date()
+
+      // Determine the most recent cycle time
+      const lastCycleTime = Math.max(
+        this.lastIndicationCycleTime,
+        this.lastStrategyCycleTime,
+        this.lastRealtimeCycleTime,
+        0
+      )
+
       return {
         ...state,
         health: {
@@ -1787,8 +1813,13 @@ export class TradeEngineManager {
             strategies: { ...this.componentHealth.strategies },
             realtime: { ...this.componentHealth.realtime },
           },
-          lastCheck: new Date(),
+          lastCheck: now,
         },
+        last_cycle_time: lastCycleTime > 0 ? new Date(lastCycleTime).toISOString() : null,
+        last_indication_cycle: this.lastIndicationCycleTime > 0 ? new Date(this.lastIndicationCycleTime).toISOString() : null,
+        last_strategy_cycle: this.lastStrategyCycleTime > 0 ? new Date(this.lastStrategyCycleTime).toISOString() : null,
+        last_realtime_cycle: this.lastRealtimeCycleTime > 0 ? new Date(this.lastRealtimeCycleTime).toISOString() : null,
+        is_running: this.isRunning,
       }
     } catch (error) {
       console.error("[v0] Failed to get engine status:", error)

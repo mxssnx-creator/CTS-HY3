@@ -77,6 +77,7 @@ export class GlobalTradeEngineCoordinator {
     console.log("[v0] GlobalTradeEngineCoordinator initialized with advanced coordination (SOLID mode)")
     this.setupGlobalErrorHandling()
     this.startStabilityMonitoring()
+    this.startCrashRecoveryWatchdog()
   }
 
   /**
@@ -100,6 +101,7 @@ export class GlobalTradeEngineCoordinator {
 
   /**
    * SOLID: Monitor coordinator stability and auto-recover if needed
+   * Enhanced with watchdog for engine crash detection and automatic restart
    */
   private startStabilityMonitoring(): void {
     // Check coordinator health every 60 seconds
@@ -123,6 +125,176 @@ export class GlobalTradeEngineCoordinator {
     stabilityTimer.unref?.()
     
     console.log("[v0] [Coordinator] Stability monitoring started (SOLID mode)")
+  }
+
+  /**
+   * CRASH RECOVERY: Watchdog timer that monitors all engines and restarts any that have crashed
+   * Runs every 30 seconds to check if engines are actually running
+   */
+  private startCrashRecoveryWatchdog(): void {
+    const WATCHDOG_INTERVAL_MS = 30000 // Check every 30 seconds
+    const ENGINE_TIMEOUT_MS = 120000 // Consider engine dead if no cycle in 2 minutes
+
+    console.log("[v0] [Watchdog] Starting crash recovery watchdog - monitoring engines for crashes")
+
+    const watchdogTimer = setInterval(async () => {
+      try {
+        const now = Date.now()
+        const engineEntries = Array.from(this.engineManagers.entries())
+
+        for (const [connectionId, manager] of engineEntries) {
+          try {
+            // Skip if coordinator is paused
+            if (this.isPaused) continue
+
+            // Check if manager reports running but may be stalled
+            const isRunning = manager.isEngineRunning
+            const status = await manager.getStatus().catch(() => null)
+
+            if (!isRunning) {
+              // Engine is not running - this is expected if intentionally stopped
+              continue
+            }
+
+            // Check for stalled engine (running flag true but no recent activity)
+            if (status) {
+              const lastUpdate = status.last_cycle_time ? new Date(status.last_cycle_time).getTime() : 0
+              const timeSinceLastCycle = now - lastUpdate
+
+              if (lastUpdate > 0 && timeSinceLastCycle > ENGINE_TIMEOUT_MS) {
+                console.error(
+                  `[v0] [Watchdog] ENGINE TIMEOUT detected for ${connectionId}: ` +
+                  `no cycle in ${Math.round(timeSinceLastCycle / 1000)}s - attempting restart`
+                )
+                await this.attemptEngineRestart(connectionId, "timeout")
+                continue
+              }
+            }
+
+            // Verify processor timers are still active by checking if engine state is corrupted
+            const stateKey = `trade_engine_state:${connectionId}`
+            const { getSettings } = await import("@/lib/redis-db")
+            const engineState = await getSettings(stateKey).catch(() => null)
+
+            if (engineState && engineState.status === "running") {
+              // Engine should be running - verify it actually is
+              // Check if the manager's internal state matches Redis
+              if (!isRunning) {
+                console.warn(
+                  `[v0] [Watchdog] State mismatch for ${connectionId}: ` +
+                  `Redis says running but manager says stopped - attempting restart`
+                )
+                await this.attemptEngineRestart(connectionId, "state_mismatch")
+              }
+            }
+          } catch (error) {
+            console.error(`[v0] [Watchdog] Error checking engine ${connectionId}:`, error)
+            // Don't throw - continue checking other engines
+          }
+        }
+      } catch (error) {
+        console.error("[v0] [Watchdog] Watchdog cycle error:", error)
+      }
+    }, WATCHDOG_INTERVAL_MS)
+
+    // Prevent timer from keeping process alive
+    watchdogTimer.unref?.()
+
+    console.log(`[v0] [Watchdog] Crash recovery watchdog active (check every ${WATCHDOG_INTERVAL_MS / 1000}s)`)
+  }
+
+  /**
+   * Attempt to restart a crashed engine with exponential backoff
+   */
+  private async attemptEngineRestart(connectionId: string, reason: string): Promise<void> {
+    const maxRetries = 3
+    const baseDelayMs = 5000 // Start with 5 second delay
+
+    console.log(`[v0] [Watchdog] Attempting restart for ${connectionId} (reason: ${reason})`)
+
+    try {
+      // Get the existing manager or create new one
+      let manager = this.engineManagers.get(connectionId)
+      
+      // Stop the old manager if it exists
+      if (manager) {
+        try {
+          await manager.stop()
+          console.log(`[v0] [Watchdog] Stopped crashed engine for ${connectionId}`)
+        } catch (stopError) {
+          console.warn(`[v0] [Watchdog] Error stopping crashed engine:`, stopError)
+        }
+        this.engineManagers.delete(connectionId)
+      }
+
+      // Get connection config
+      const { getSettings } = await import("@/lib/redis-db")
+      const connectionSettings = await getSettings(`connection:${connectionId}`).catch(() => null)
+      
+      if (!connectionSettings) {
+        console.error(`[v0] [Watchdog] Cannot restart ${connectionId}: connection settings not found`)
+        return
+      }
+
+      // Load settings for engine config
+      const { loadSettingsAsync } = await import("@/lib/settings-storage")
+      const settings = await loadSettingsAsync().catch(() => null)
+
+      const config: EngineConfig = {
+        connectionId,
+        connection_name: connectionSettings.name || connectionId,
+        engine_type: "main",
+        indicationInterval: settings?.mainEngineIntervalMs ? Math.max(1, settings.mainEngineIntervalMs / 1000) : 5,
+        strategyInterval: settings?.strategyUpdateIntervalMs ? Math.max(1, settings.strategyUpdateIntervalMs / 1000) : 10,
+        realtimeInterval: settings?.realtimeIntervalMs ? Math.max(1, settings.realtimeIntervalMs / 1000) : 3,
+      }
+
+      // Attempt restart with retry logic
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`[v0] [Watchdog] Restart attempt ${attempt}/${maxRetries} for ${connectionId}`)
+
+          // Create new manager and start
+          const newManager = new TradeEngineManager(config)
+          this.engineManagers.set(connectionId, newManager)
+          await newManager.start(config)
+
+          console.log(`[v0] [Watchdog] ✓ Engine restarted successfully for ${connectionId}`)
+
+          // Log the recovery event
+          const { logProgressionEvent } = await import("@/lib/engine-progression-logs")
+          await logProgressionEvent(connectionId, "engine_restarted", "warning", `Engine auto-restarted after crash (${reason})`, {
+            reason,
+            attempt,
+            maxRetries,
+            watchdog: true,
+          }).catch(() => {})
+
+          return // Success
+        } catch (restartError) {
+          console.error(`[v0] [Watchdog] Restart attempt ${attempt} failed for ${connectionId}:`, restartError)
+
+          if (attempt < maxRetries) {
+            const delay = baseDelayMs * Math.pow(2, attempt - 1) // Exponential backoff
+            console.log(`[v0] [Watchdog] Waiting ${delay}ms before next attempt...`)
+            await new Promise(resolve => setTimeout(resolve, delay))
+          }
+        }
+      }
+
+      console.error(`[v0] [Watchdog] ✗ Failed to restart engine ${connectionId} after ${maxRetries} attempts`)
+      
+      // Log the failed recovery
+      const { logProgressionEvent } = await import("@/lib/engine-progression-logs")
+      await logProgressionEvent(connectionId, "engine_restart_failed", "error", `Engine auto-restart failed after ${maxRetries} attempts`, {
+        reason,
+        maxRetries,
+        watchdog: true,
+      }).catch(() => {})
+
+    } catch (error) {
+      console.error(`[v0] [Watchdog] Fatal error during restart attempt for ${connectionId}:`, error)
+    }
   }
 
   /**
