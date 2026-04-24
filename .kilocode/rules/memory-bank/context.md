@@ -27,13 +27,26 @@
   - Fixed type errors in components/error-banner.tsx (added AppError type annotations)
   - Fixed type errors in components/error-section.tsx (added AppError type annotations)
   - Fixed type errors in hooks/use-error-handler.ts (resolved missing module)
+- [x] Fixed Main Connection stability issues (reappearance after delete, readd on enable)
+  - Root cause 1: ensureBaseConnections() recreated deleted base connections
+  - Fix 1: Track deleted base connections in Redis set 'deleted_base_connections', skip in migrations
+  - Root cause 2: is_dashboard_inserted flag defaulted to "1" and used `||` operator (treats "0" as falsy)
+  - Fix 2: Changed to preserve existing "0" values, removed from loadConnections() filter
+  - Added helper functions: isBaseConnection, markBaseConnectionDeleted, unmarkBaseConnectionDeleted
+  - Export BASE_CONNECTION_CONFIG for use in delete API
 
 ### Current Focus
+- Main Connection stability issues resolved (delete reappearance, enable readd fixed)
 - Complete deployment system with Database (local Redis), persistence, init and functionality
 - Proper startups, inits, and coordinations for all services
 - Error handling system implementation complete
 
 ### Session History
+- 2026-04-24: Fixed Main Connection stability issues:
+  - lib/redis-migrations.ts: Added deleted base connection tracking (Redis set)
+  - lib/redis-migrations.ts: Fixed is_dashboard_inserted to preserve "0" values
+  - app/api/settings/connections/[id]/route.ts: Mark base connections as deleted on delete
+  - components/dashboard/dashboard-active-connections-manager.tsx: Removed is_dashboard_inserted from filter
 - 2026-04-24: Implemented comprehensive error handling system:
   - lib/error-handling.ts: Enhanced with 30+ error codes (DATABASE_*, API_*, RATE_LIMIT_*, SERVICE_*)
   - lib/error-context.tsx: Created ErrorProvider with error state management and cooldown
