@@ -17,7 +17,8 @@ function toNumber(value: unknown): number {
 function patchIndicationProcessorCaches(coordinator: any) {
   if (!coordinator) return
   try {
-    const engines = coordinator.engines || coordinator._engines || new Map()
+    // FIX: Use engineManagers (the actual property name in GlobalTradeEngineCoordinator)
+    const engines = coordinator.engineManagers || coordinator.engines || new Map()
     for (const [, manager] of engines) {
       if (manager?.indicationProcessor) {
         const proc = manager.indicationProcessor
@@ -489,54 +490,48 @@ export async function POST(request: Request) {
     // Calculate comprehensive engine counts from Redis
     const startStatsTime = Date.now()
     
-    const engineState = (await getSettings(`trade_engine_state:${connectionId}`)) || {}
-
-    // Basic counts
-    const indicationsCount = toNumber(await client.get(`indications:${connectionId}:count`).catch(() => 0))
-    const strategiesCount = toNumber(await client.get(`strategies:${connectionId}:count`).catch(() => 0))
-    const positionsCount = await client.scard(`positions:${connectionId}`).catch(() => 0)
+    // PRIMARY: Read from progression:{connId} hash (written every cycle by the engine)
+    const progressionState = await client.hgetall(`progression:${connectionId}`).catch(() => ({} as Record<string, string>)) || {}
+    
+    // Basic counts from progression hash
+    const indicationsCount = parseInt(progressionState.indications_count || "0", 10)
+    const strategiesBaseCount = parseInt(progressionState.strategies_base_total || "0", 10)
+    const strategiesMainCount = parseInt(progressionState.strategies_main_total || "0", 10)
+    const strategiesRealCount = parseInt(progressionState.strategies_real_total || "0", 10)
+    const strategiesCount = strategiesRealCount // Canonical = final stage
+    
+    // Position counts from progression hash
+    const basePseudoPositions = parseInt(progressionState.base_positions_count || "0", 10)
+    const mainPseudoPositions = parseInt(progressionState.main_positions_count || "0", 10)
+    const realPseudoPositions = parseInt(progressionState.real_positions_count || "0", 10)
+    const livePositionsCount = parseInt(progressionState.live_positions_count || "0", 10)
+    
+    // Also try to read position sets as fallback
+    const positionsCount = await client.scard(`positions:${connectionId}`).catch(() => 0) ||
+                         await client.scard(`pseudo_positions:${connectionId}`).catch(() => 0)
     const tradesCount = await client.scard(`trades:${connectionId}`).catch(() => 0)
     
-    // Detailed indication counts by type
-    const directionIndications = toNumber(await client.get(`indications:${connectionId}:direction:count`).catch(() => 0))
-    const moveIndications = toNumber(await client.get(`indications:${connectionId}:move:count`).catch(() => 0))
-    const activeIndications = toNumber(await client.get(`indications:${connectionId}:active:count`).catch(() => 0))
-    const optimalIndications = toNumber(await client.get(`indications:${connectionId}:optimal:count`).catch(() => 0))
-    const autoIndications = toNumber(await client.get(`indications:${connectionId}:auto:count`).catch(() => 0))
-
-    const strategyCounts = {
-      base: toNumber(await client.get(`strategies:${connectionId}:base:count`).catch(() => 0)),
-      main: toNumber(await client.get(`strategies:${connectionId}:main:count`).catch(() => 0)),
-      real: toNumber(await client.get(`strategies:${connectionId}:real:count`).catch(() => 0)),
-    }
-    const strategyEvaluated = {
-      base: toNumber(await client.get(`strategies:${connectionId}:base:evaluated`).catch(() => 0)),
-      main: toNumber(await client.get(`strategies:${connectionId}:main:evaluated`).catch(() => 0)),
-      real: toNumber(await client.get(`strategies:${connectionId}:real:evaluated`).catch(() => 0)),
-    }
+    // Detailed indication counts by type from progression hash
+    const directionIndications = parseInt(progressionState.indications_direction_count || progressionState.indications_direction || "0", 10)
+    const moveIndications = parseInt(progressionState.indications_move_count || progressionState.indications_move || "0", 10)
+    const activeIndications = parseInt(progressionState.indications_active_count || progressionState.indications_active || "0", 10)
+    const optimalIndications = parseInt(progressionState.indications_optimal_count || progressionState.indications_optimal || "0", 10)
+    const autoIndications = parseInt(progressionState.indications_auto_count || progressionState.indications_auto || "0", 10)
     
-    // Pseudo positions by type
-    const basePseudoPositions = await client.scard(`base_pseudo:${connectionId}`).catch(() => 0)
-    const mainPseudoPositions = await client.scard(`main_pseudo:${connectionId}`).catch(() => 0)
-    const realPseudoPositions = await client.scard(`real_pseudo:${connectionId}`).catch(() => 0)
-    
-    // Live positions (real exchange positions)
-    const livePositionsCount = await client.scard(`positions:${connectionId}:live`).catch(() => 0)
+    // Strategy evaluated counts
+    const strategyEvaluatedBase = parseInt(progressionState.strategies_base_evaluated || "0", 10)
+    const strategyEvaluatedMain = parseInt(progressionState.strategies_main_evaluated || "0", 10)
+    const strategyEvaluatedReal = parseInt(progressionState.strategies_real_evaluated || "0", 10)
     
     // Get prehistoric data info
-    const prehistoricSymbols = await client.scard(`prehistoric:${connectionId}:symbols`).catch(() => 0)
-    let prehistoricDataSize = 0
-    try {
-      const keys = await client.keys(`prehistoric:${connectionId}:*`)
-      prehistoricDataSize = keys.length
-    } catch { /* ignore */ }
+    const prehistoricSymbols = parseInt(progressionState.prehistoric_symbols_total || "0", 10)
+    const prehistoricDataSize = parseInt(progressionState.prehistoric_data_size || "0", 10)
     
     // Get intervals processed
-    const intervalsProcessed = toNumber(await client.get(`intervals:${connectionId}:processed_count`).catch(() => 0))
+    const intervalsProcessed = parseInt(progressionState.intervals_processed || progressionState.cycles_completed || "0", 10)
     
-    // Get cycle duration from settings
-    const progressionState = await client.hgetall(`progression:${connectionId}`).catch(() => ({} as Record<string, string>)) || {}
-    const cycleDuration = Number(engineState?.last_cycle_duration || progressionState?.last_cycle_duration || progressionState?.cycle_duration || 0)
+    // Get cycle duration from progression state
+    const cycleDuration = parseInt(progressionState.last_cycle_duration || progressionState.cycle_duration || "0", 10)
     const totalCycleDuration = Date.now() - startStatsTime
     
     // Build comprehensive stats object
@@ -551,16 +546,25 @@ export async function POST(request: Request) {
       intervalsProcessed,
       
       // Indications by type
-       indicationsByType: {
-         direction: directionIndications,
-         move: moveIndications,
-         active: activeIndications,
-         optimal: optimalIndications,
-         auto: autoIndications,
-         total: indicationsCount || directionIndications + moveIndications + activeIndications + optimalIndications + autoIndications,
-       },
-       strategyCounts,
-       strategyEvaluated,
+        indicationsByType: {
+          direction: directionIndications,
+          move: moveIndications,
+          active: activeIndications,
+          optimal: optimalIndications,
+          auto: autoIndications,
+          total: indicationsCount || directionIndications + moveIndications + activeIndications + optimalIndications + autoIndications,
+        },
+        strategyCounts: {
+          base: strategiesBaseCount,
+          main: strategiesMainCount,
+          real: strategiesRealCount,
+          total: strategiesCount,
+        },
+        strategyEvaluated: {
+          base: strategyEvaluatedBase,
+          main: strategyEvaluatedMain,
+          real: strategyEvaluatedReal,
+        },
       
       // Pseudo positions by type
       pseudoPositions: {
@@ -594,50 +598,71 @@ export async function POST(request: Request) {
     console.log(`${LOG_PREFIX}: Pseudo Positions - Base: ${basePseudoPositions}, Main: ${mainPseudoPositions}, Real: ${realPseudoPositions}`)
     console.log(`${LOG_PREFIX}: Live Positions: ${livePositionsCount}, Cycle Duration: ${cycleDuration}ms`)
     
-    return NextResponse.json({
-      success: true,
-      action: "enable",
-      connection: { 
-        id: connectionId, 
-        name: connection.name, 
-        exchange: exchangeName,
-        symbols,
-        testPassed,
-        testError: testError || undefined,
-        testBalance,
-      },
-      engineCounts: {
-        indications: indicationsCount,
-        strategies: strategiesCount,
-        positions: positionsCount,
-        trades: tradesCount,
-      },
-      // Comprehensive overall statistics
-      overallStats: {
-        symbols: {
-          count: overallStats.symbolsCount,
-          processing: overallStats.symbolsProcessing,
-          prehistoricLoaded: overallStats.prehistoricSymbolsLoaded,
-          prehistoricDataSize: overallStats.prehistoricDataSize,
+      return NextResponse.json({
+        success: true,
+        action: "enable",
+        connection: { 
+          id: connectionId, 
+          name: connection.name, 
+          exchange: exchangeName,
+          symbols,
+          testPassed,
+          testError: testError || undefined,
+          testBalance,
         },
-        intervalsProcessed: overallStats.intervalsProcessed,
-        indicationsByType: overallStats.indicationsByType,
-        strategyCounts: overallStats.strategyCounts,
-        strategyEvaluated: overallStats.strategyEvaluated,
-        pseudoPositions: overallStats.pseudoPositions,
-        livePositions: overallStats.livePositions,
-        cycleTimeMs: overallStats.cycleDurationMs,
-        totalDurationMs: overallStats.totalDuration,
-      },
-      status: hasCredentials ? "ready_with_credentials" : "ready_without_credentials",
-      nextSteps: hasCredentials 
-        ? "Connection assigned and enabled in Main Connections. Engine startup initiated."
-        : "Connection assigned and enabled for quickstart, but credentials are missing/invalid for live exchange operations.",
-      duration: totalDuration,
-      logs: allLogs.slice(0, 50),
-      logsCount: allLogs.length,
-      version: API_VERSION,
-    })
+        engineCounts: {
+          indications: indicationsCount,
+          strategies: strategiesCount,
+          positions: positionsCount,
+          trades: tradesCount,
+        },
+        // Comprehensive overall statistics
+        overallStats: {
+          symbols: {
+            count: symbols.length,
+            processing: symbols,
+            prehistoricLoaded: prehistoricSymbols,
+            prehistoricDataSize: prehistoricDataSize,
+          },
+          intervalsProcessed: intervalsProcessed,
+          indicationsByType: {
+            direction: directionIndications,
+            move: moveIndications,
+            active: activeIndications,
+            optimal: optimalIndications,
+            auto: autoIndications,
+            total: indicationsCount || directionIndications + moveIndications + activeIndications + optimalIndications + autoIndications,
+          },
+          strategyCounts: {
+            base: strategiesBaseCount,
+            main: strategiesMainCount,
+            real: strategiesRealCount,
+            total: strategiesCount,
+          },
+          strategyEvaluated: {
+            base: strategyEvaluatedBase,
+            main: strategyEvaluatedMain,
+            real: strategyEvaluatedReal,
+          },
+          pseudoPositions: {
+            base: basePseudoPositions,
+            main: mainPseudoPositions,
+            real: realPseudoPositions,
+            total: realPseudoPositions,
+          },
+          livePositions: livePositionsCount,
+          cycleTimeMs: cycleDuration,
+          totalDurationMs: totalCycleDuration,
+        },
+        status: hasCredentials ? "ready_with_credentials" : "ready_without_credentials",
+        nextSteps: hasCredentials 
+          ? "Connection assigned and enabled in Main Connections. Engine startup initiated."
+          : "Connection assigned and enabled for quickstart, but credentials are missing/invalid for live exchange operations.",
+        duration: totalDuration,
+        logs: allLogs.slice(0, 50),
+        logsCount: allLogs.length,
+        version: API_VERSION,
+      })
     
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
