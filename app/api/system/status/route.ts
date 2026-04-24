@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { SystemLogger } from "@/lib/system-logger"
 import { ConnectionCoordinator } from "@/lib/connection-coordinator"
 import { BatchProcessor } from "@/lib/batch-processor"
+import { handleApiError, createSuccessResponse } from "@/lib/error-handling"
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +32,11 @@ export async function GET(request: NextRequest) {
         keys_count: dbSize,
       }
     } catch (error) {
-      databaseInfo.error = "Redis info unavailable"
+      databaseInfo = {
+        status: "unavailable",
+        type: "redis",
+        error: "Redis info unavailable",
+      }
     }
 
     // Group by exchange
@@ -107,18 +112,19 @@ export async function GET(request: NextRequest) {
       },
     }
 
-    return NextResponse.json(systemStatus, { status: 200 })
+    return NextResponse.json(
+      createSuccessResponse(systemStatus, "System status retrieved successfully"),
+      { status: 200 }
+    )
   } catch (error) {
-    console.error("[v0] System status error:", error)
+    const context = {
+      component: "api/system/status",
+      operation: "GET",
+    }
+
+    const { response, status } = handleApiError(error, context, "Failed to retrieve system status")
     await SystemLogger.logError(error, "api", "GET /api/system/status")
 
-    return NextResponse.json(
-      {
-        error: "Failed to retrieve system status",
-        details: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
-      },
-      { status: 500 }
-    )
+    return NextResponse.json(response, { status })
   }
 }

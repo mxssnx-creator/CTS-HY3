@@ -12,6 +12,7 @@ import { VolatilityScreenerCard } from "./volatility-screener-card"
 import { EngineProgressionTestButton } from "./engine-progression-test-dialog"
 import { Card } from "@/components/ui/card"
 import { useIndicationGenerator } from "@/components/indication-generator-hook"
+import { ErrorSection } from "@/components/error-section"
 
 interface ErrorBoundaryProps { children: ReactNode; name: string }
 interface ErrorBoundaryState { hasError: boolean; error?: Error }
@@ -90,6 +91,9 @@ export function Dashboard() {
         <ErrorBoundary name="System Monitoring">
           <SystemMonitoringPanel />
         </ErrorBoundary>
+
+        {/* Error Section at Bottom of MainPage */}
+        <ErrorSection />
       </div>
     </div>
   )

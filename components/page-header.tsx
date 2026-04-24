@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Target } from "lucide-react"
 import { useExchange } from "@/lib/exchange-context"
+import { ErrorHint } from "@/components/error-banner"
 
 interface PageHeaderProps {
   title?: string
@@ -53,6 +54,7 @@ export function PageHeader({
                 )}
               </Badge>
             )}
+            <ErrorHint />
           </div>
           {description && (
             <p className="text-sm text-muted-foreground">{description}</p>

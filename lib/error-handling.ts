@@ -33,7 +33,40 @@ export enum ErrorCode {
 
   // System errors
   DATABASE_ERROR = "DATABASE_ERROR",
+  DATABASE_CONNECTION_ERROR = "DATABASE_CONNECTION_ERROR",
+  DATABASE_QUERY_ERROR = "DATABASE_QUERY_ERROR",
+  DATABASE_TIMEOUT = "DATABASE_TIMEOUT",
+
+  // API errors
+  API_ERROR = "API_ERROR",
+  API_SERVICE_UNAVAILABLE = "API_SERVICE_UNAVAILABLE",
+  API_BAD_REQUEST = "API_BAD_REQUEST",
+  API_UNAUTHORIZED = "API_UNAUTHORIZED",
+  API_FORBIDDEN = "API_FORBIDDEN",
+  API_NOT_FOUND = "API_NOT_FOUND",
+  API_INTERNAL_ERROR = "API_INTERNAL_ERROR",
+
+  // Rate limiting errors
+  RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED",
+  RATE_LIMIT_IP_BLOCKED = "RATE_LIMIT_IP_BLOCKED",
+  RATE_LIMIT_ACCOUNT_RESTRICTED = "RATE_LIMIT_ACCOUNT_RESTRICTED",
+
+  // Service errors
+  SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE",
+  SERVICE_TIMEOUT = "SERVICE_TIMEOUT",
+  SERVICE_INITIALIZATION_FAILED = "SERVICE_INITIALIZATION_FAILED",
+  SERVICE_DEPENDENCY_FAILED = "SERVICE_DEPENDENCY_FAILED",
+
+  // Validation errors
   VALIDATION_FAILED = "VALIDATION_FAILED",
+  INVALID_INPUT = "INVALID_INPUT",
+  MISSING_REQUIRED_FIELD = "MISSING_REQUIRED_FIELD",
+
+  // Network errors
+  NETWORK_ERROR = "NETWORK_ERROR",
+  DNS_RESOLUTION_FAILED = "DNS_RESOLUTION_FAILED",
+  SSL_CERTIFICATE_ERROR = "SSL_CERTIFICATE_ERROR",
+
   UNKNOWN = "UNKNOWN",
 }
 
@@ -184,12 +217,54 @@ export class ErrorHandler {
     if (!error) return ErrorCode.UNKNOWN
 
     const msg = error.message?.toLowerCase() || error.toString().toLowerCase()
+    const errorCode = error.code?.toLowerCase() || ""
+    const status = error.status || error.statusCode || error.response?.status
+
+    // Database errors
+    if (msg.includes("database") || msg.includes("db error") || msg.includes("sqlite") || msg.includes("postgres") || msg.includes("redis")) {
+      if (msg.includes("connection") || msg.includes("econnrefused")) return ErrorCode.DATABASE_CONNECTION_ERROR
+      if (msg.includes("timeout")) return ErrorCode.DATABASE_TIMEOUT
+      if (msg.includes("query failed") || msg.includes("syntax error")) return ErrorCode.DATABASE_QUERY_ERROR
+      return ErrorCode.DATABASE_ERROR
+    }
+
+    // Rate limiting errors (check before general API errors)
+    if (status === 429 || msg.includes("rate limit") || msg.includes("too many requests") || errorCode.includes("rate")) {
+      if (msg.includes("ip") && (msg.includes("blocked") || msg.includes("banned"))) return ErrorCode.RATE_LIMIT_IP_BLOCKED
+      if (msg.includes("account") && (msg.includes("restricted") || msg.includes("suspended"))) return ErrorCode.RATE_LIMIT_ACCOUNT_RESTRICTED
+      return ErrorCode.RATE_LIMIT_EXCEEDED
+    }
+
+    // API errors
+    if (msg.includes("api") || msg.includes("endpoint") || status >= 400) {
+      if (status === 400 || msg.includes("bad request")) return ErrorCode.API_BAD_REQUEST
+      if (status === 401 || msg.includes("unauthorized") || msg.includes("invalid api key")) return ErrorCode.API_UNAUTHORIZED
+      if (status === 403 || msg.includes("forbidden")) return ErrorCode.API_FORBIDDEN
+      if (status === 404 || msg.includes("not found")) return ErrorCode.API_NOT_FOUND
+      if (status === 500 || msg.includes("internal server error")) return ErrorCode.API_INTERNAL_ERROR
+      if (msg.includes("service unavailable") || status === 503) return ErrorCode.API_SERVICE_UNAVAILABLE
+      if (msg.includes("timeout")) return ErrorCode.API_TIMEOUT
+      return ErrorCode.API_ERROR
+    }
+
+    // Service errors
+    if (msg.includes("service") || msg.includes("dependency")) {
+      if (msg.includes("unavailable") || msg.includes("down")) return ErrorCode.SERVICE_UNAVAILABLE
+      if (msg.includes("timeout")) return ErrorCode.SERVICE_TIMEOUT
+      if (msg.includes("initialization") || msg.includes("init failed")) return ErrorCode.SERVICE_INITIALIZATION_FAILED
+      if (msg.includes("dependency") && (msg.includes("failed") || msg.includes("missing"))) return ErrorCode.SERVICE_DEPENDENCY_FAILED
+      return ErrorCode.SERVICE_UNAVAILABLE
+    }
+
+    // Network errors
+    if (msg.includes("econnrefused") || msg.includes("connection refused")) return ErrorCode.CONNECTION_FAILED
+    if (msg.includes("dns") || msg.includes("enotfound")) return ErrorCode.DNS_RESOLUTION_FAILED
+    if (msg.includes("ssl") || msg.includes("certificate")) return ErrorCode.SSL_CERTIFICATE_ERROR
+    if (msg.includes("network") || msg.includes("econnreset") || msg.includes("econnaborted")) return ErrorCode.NETWORK_ERROR
 
     // Connection errors
-    if (msg.includes("econnrefused") || msg.includes("connection refused")) return ErrorCode.CONNECTION_FAILED
     if (msg.includes("invalid api key") || msg.includes("invalid credentials")) return ErrorCode.INVALID_CREDENTIALS
     if (msg.includes("timeout")) return ErrorCode.API_TIMEOUT
-    if (msg.includes("rate limit") || msg.includes("429")) return ErrorCode.RATE_LIMITED
 
     // Order errors
     if (msg.includes("insufficient balance") || msg.includes("insufficient margin")) return ErrorCode.INSUFFICIENT_BALANCE
@@ -205,6 +280,10 @@ export class ErrorHandler {
     if (msg.includes("position size") && msg.includes("too large")) return ErrorCode.POSITION_SIZE_TOO_LARGE
     if (msg.includes("drawdown")) return ErrorCode.DRAWDOWN_EXCEEDED
     if (msg.includes("max positions")) return ErrorCode.MAX_POSITIONS_REACHED
+
+    // Validation errors
+    if (msg.includes("validation") || msg.includes("invalid input") || msg.includes("schema")) return ErrorCode.VALIDATION_FAILED
+    if (msg.includes("missing") && msg.includes("required")) return ErrorCode.MISSING_REQUIRED_FIELD
 
     return ErrorCode.UNKNOWN
   }
@@ -239,6 +318,14 @@ export class ErrorHandler {
       ErrorCode.LEVERAGE_TOO_HIGH,
       ErrorCode.POSITION_SIZE_TOO_LARGE,
       ErrorCode.VALIDATION_FAILED,
+      ErrorCode.INVALID_INPUT,
+      ErrorCode.MISSING_REQUIRED_FIELD,
+      ErrorCode.API_BAD_REQUEST,
+      ErrorCode.API_UNAUTHORIZED,
+      ErrorCode.API_FORBIDDEN,
+      ErrorCode.API_NOT_FOUND,
+      ErrorCode.ORDER_NOT_FOUND,
+      ErrorCode.POSITION_NOT_FOUND,
     ]
 
     return !nonRetryable.includes(code)
@@ -248,7 +335,13 @@ export class ErrorHandler {
    * Should stop processing on this error?
    */
   static shouldStop(code: ErrorCode): boolean {
-    const stopErrors = [ErrorCode.INVALID_CREDENTIALS, ErrorCode.LIQUIDATION_RISK, ErrorCode.DRAWDOWN_EXCEEDED]
+    const stopErrors = [
+      ErrorCode.INVALID_CREDENTIALS,
+      ErrorCode.LIQUIDATION_RISK,
+      ErrorCode.DRAWDOWN_EXCEEDED,
+      ErrorCode.SERVICE_INITIALIZATION_FAILED,
+      ErrorCode.DATABASE_CONNECTION_ERROR,
+    ]
 
     return stopErrors.includes(code)
   }
@@ -306,5 +399,97 @@ export async function withErrorHandling<T>(
     success: false,
     error: lastError instanceof Error ? lastError.message : String(lastError),
     code: lastCode,
+  }
+}
+
+/**
+ * Create a standardized API error response
+ */
+export function createErrorResponse(
+  code: ErrorCode,
+  message: string,
+  status: number = 500,
+  details?: any
+) {
+  return {
+    error: {
+      code,
+      message,
+      ...(details && { details }),
+      timestamp: new Date().toISOString(),
+    },
+  }
+}
+
+/**
+ * Create a standardized API success response
+ */
+export function createSuccessResponse<T>(data: T, message?: string) {
+  return {
+    success: true,
+    data,
+    ...(message && { message }),
+    timestamp: new Date().toISOString(),
+  }
+}
+
+/**
+ * Map ErrorCode to HTTP status code
+ */
+export function getHttpStatusForErrorCode(code: ErrorCode): number {
+  switch (code) {
+    case ErrorCode.API_BAD_REQUEST:
+    case ErrorCode.VALIDATION_FAILED:
+    case ErrorCode.INVALID_INPUT:
+    case ErrorCode.MISSING_REQUIRED_FIELD:
+      return 400
+    case ErrorCode.API_UNAUTHORIZED:
+    case ErrorCode.INVALID_CREDENTIALS:
+      return 401
+    case ErrorCode.API_FORBIDDEN:
+      return 403
+    case ErrorCode.API_NOT_FOUND:
+    case ErrorCode.ORDER_NOT_FOUND:
+    case ErrorCode.POSITION_NOT_FOUND:
+      return 404
+    case ErrorCode.RATE_LIMITED:
+    case ErrorCode.RATE_LIMIT_EXCEEDED:
+    case ErrorCode.RATE_LIMIT_IP_BLOCKED:
+    case ErrorCode.RATE_LIMIT_ACCOUNT_RESTRICTED:
+      return 429
+    case ErrorCode.API_INTERNAL_ERROR:
+    case ErrorCode.DATABASE_ERROR:
+    case ErrorCode.SERVICE_UNAVAILABLE:
+      return 500
+    case ErrorCode.API_SERVICE_UNAVAILABLE:
+    case ErrorCode.SERVICE_UNAVAILABLE:
+      return 503
+    case ErrorCode.API_TIMEOUT:
+    case ErrorCode.SERVICE_TIMEOUT:
+    case ErrorCode.DATABASE_TIMEOUT:
+      return 504
+    default:
+      return 500
+  }
+}
+
+/**
+ * Handle API errors with standardized response
+ */
+export function handleApiError(
+  error: any,
+  context: LogContext,
+  customMessage?: string
+): { response: ReturnType<typeof createErrorResponse>; status: number } {
+  const code = ErrorHandler.classifyError(error)
+  const message = customMessage || (error instanceof Error ? error.message : "An unexpected error occurred")
+
+  UnifiedLogger.error(context, code, message, error)
+
+  const status = getHttpStatusForErrorCode(code)
+
+  return {
+    response: createErrorResponse(code, message, status, error instanceof Error ? error.stack : String(error)),
+    status,
   }
 }
