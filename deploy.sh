@@ -42,7 +42,7 @@ check_prerequisites() {
         exit 1
     fi
 
-    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+    if ! command -v docker &> /dev/null || ! docker compose version &> /dev/null; then
         log_error "Docker Compose is not installed. Please install Docker Compose first."
         exit 1
     fi
@@ -88,7 +88,7 @@ initialize_services() {
 
     # Start Redis first
     log_info "Starting Redis..."
-    docker-compose -f "$COMPOSE_FILE" up -d redis
+    docker compose -f "$COMPOSE_FILE" up -d redis
     log_info "Waiting for Redis to be healthy..."
     sleep 5
 
@@ -96,7 +96,7 @@ initialize_services() {
     local max_attempts=30
     local attempt=0
     while [ $attempt -lt $max_attempts ]; do
-        if docker-compose -f "$COMPOSE_FILE" ps redis | grep -q "healthy"; then
+        if docker compose -f "$COMPOSE_FILE" ps redis | grep -q "healthy"; then
             log_success "Redis is healthy"
             break
         fi
@@ -112,7 +112,7 @@ initialize_services() {
 
     # Run database initialization
     log_info "Running database initialization..."
-    docker-compose -f "$COMPOSE_FILE" up db-init
+    docker compose -f "$COMPOSE_FILE" up db-init
 
     if [ $? -eq 0 ]; then
         log_success "Database initialization complete"
@@ -126,7 +126,7 @@ deploy_application() {
     log_info "Deploying application..."
 
     # Build and start all services
-    docker-compose -f "$COMPOSE_FILE" up -d --build
+    docker compose -f "$COMPOSE_FILE" up -d --build
 
     log_info "Waiting for application to be healthy..."
     sleep 10
@@ -135,7 +135,7 @@ deploy_application() {
     local max_attempts=30
     local attempt=0
     while [ $attempt -lt $max_attempts ]; do
-        if docker-compose -f "$COMPOSE_FILE" ps cts-app | grep -q "healthy"; then
+        if docker compose -f "$COMPOSE_FILE" ps cts-app | grep -q "healthy"; then
             log_success "Application is healthy"
             break
         fi
@@ -146,7 +146,7 @@ deploy_application() {
 
     if [ $attempt -eq $max_attempts ]; then
         log_error "Application failed to become healthy"
-        docker-compose -f "$COMPOSE_FILE" logs cts-app --tail 50
+        docker compose -f "$COMPOSE_FILE" logs cts-app --tail 50
         exit 1
     fi
 }
@@ -155,7 +155,7 @@ deploy_application() {
 show_status() {
     log_info "Deployment Status:"
     echo ""
-    docker-compose -f "$COMPOSE_FILE" ps
+    docker compose -f "$COMPOSE_FILE" ps
     echo ""
 
     local app_port=${PORT:-3001}
@@ -164,9 +164,9 @@ show_status() {
     log_info "Redis: localhost:6379"
     echo ""
     log_info "Useful commands:"
-    log_info "  View logs: docker-compose -f $COMPOSE_FILE logs -f"
-    log_info "  Stop: docker-compose -f $COMPOSE_FILE down"
-    log_info "  Restart: docker-compose -f $COMPOSE_FILE restart"
+    log_info "  View logs: docker compose -f $COMPOSE_FILE logs -f"
+    log_info "  Stop: docker compose -f $COMPOSE_FILE down"
+    log_info "  Restart: docker compose -f $COMPOSE_FILE restart"
 }
 
 # Main execution
@@ -196,19 +196,19 @@ main() {
             ;;
         "stop")
             log_info "Stopping all services..."
-            docker-compose -f "$COMPOSE_FILE" down
+            docker compose -f "$COMPOSE_FILE" down
             log_success "Services stopped"
             ;;
         "restart")
             log_info "Restarting all services..."
-            docker-compose -f "$COMPOSE_FILE" restart
+            docker compose -f "$COMPOSE_FILE" restart
             show_status
             ;;
         "status")
             show_status
             ;;
         "logs")
-            docker-compose -f "$COMPOSE_FILE" logs -f "${2:-}"
+            docker compose -f "$COMPOSE_FILE" logs -f "${2:-}"
             ;;
         *)
             echo "Usage: $0 {all|init|start|stop|restart|status|logs [service]}"

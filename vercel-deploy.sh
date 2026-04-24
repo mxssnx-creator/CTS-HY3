@@ -65,9 +65,9 @@ fi
 
 # Run local checks before deployment
 echo -e "${YELLOW}Running pre-deployment checks...${NC}"
-npm run typecheck
-npm run lint
-npm run build
+bun typecheck
+bun lint
+bun run build
 
 # Deploy to production
 echo -e "${YELLOW}Deploying to Vercel production...${NC}"
