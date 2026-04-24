@@ -5,6 +5,7 @@
  */
 
 import { initRedis, getRedisClient } from "@/lib/redis-db"
+import { PseudoPositionManager } from "@/lib/trade-engine/pseudo-position-manager"
 
 export interface StrategyConfig {
   id: string
@@ -135,6 +136,10 @@ export class StrategyConfigManager {
     const updated = { ...config, ...updates }
     const key = this.getConfigKey(configId)
     await client.set(key, JSON.stringify(updated))
+
+    // Close all open pseudo positions linked to this config to ensure new settings apply
+    const posManager = new PseudoPositionManager(this.connectionId)
+    await posManager.closePositionsByConfigId(configId, "config_updated")
 
     console.log(`[v0] [StrategyConfigManager] Updated config ${configId}`)
   }
@@ -332,6 +337,9 @@ export class StrategyConfigManager {
 
   async disableConfig(configId: string): Promise<void> {
     await this.updateConfig(configId, { enabled: false })
+    // Close all open pseudo positions linked to this disabled config
+    const posManager = new PseudoPositionManager(this.connectionId)
+    await posManager.closePositionsByConfigId(configId, "config_disabled")
   }
 
   async getEnabledConfigs(): Promise<StrategyConfig[]> {

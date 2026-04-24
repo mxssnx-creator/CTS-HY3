@@ -136,7 +136,13 @@ export class PseudoPositionManager {
    * single `Promise.all` so the whole list is fetched in one RTT window and
    * filtering happens after in O(N) on the already-materialised array.
    */
-  private async listPositions(filter?: { status?: string; side?: string; symbol?: string; indicationType?: string }): Promise<any[]> {
+  private async listPositions(filter?: {
+    status?: string
+    side?: string
+    symbol?: string
+    indicationType?: string
+    strategyConfigId?: string
+  }): Promise<any[]> {
     try {
       const client = getRedisClient()
       const ids = await client.smembers(this.positionsSetKey())
@@ -166,7 +172,7 @@ export class PseudoPositionManager {
       }
 
       const hasFilter = Boolean(
-        filter?.status || filter?.side || filter?.symbol || filter?.indicationType,
+        filter?.status || filter?.side || filter?.symbol || filter?.indicationType || filter?.strategyConfigId,
       )
       if (!hasFilter) return raw
 
@@ -176,6 +182,7 @@ export class PseudoPositionManager {
         if (filter?.side && pos.side !== filter.side) continue
         if (filter?.symbol && pos.symbol !== filter.symbol) continue
         if (filter?.indicationType && pos.indication_type !== filter.indicationType) continue
+        if (filter?.strategyConfigId && pos.strategy_config_id !== filter.strategyConfigId) continue
         positions.push(pos)
       }
       return positions
@@ -783,6 +790,28 @@ export class PseudoPositionManager {
   async getPositionCountByDirection(side: "long" | "short"): Promise<number> {
     const positions = await this.listPositions({ status: "active", side })
     return positions.length
+  }
+
+  /**
+   * Close all active pseudo positions linked to a specific strategy config ID.
+   * Called when a config is updated or disabled to ensure positions reflect new settings.
+   */
+  async closePositionsByConfigId(configId: string, reason = "config_updated"): Promise<number> {
+    try {
+      const positions = await this.listPositions({ status: "active", strategyConfigId: configId })
+      let closedCount = 0
+      for (const pos of positions) {
+        await this.closePosition(pos.id, reason, pos)
+        closedCount++
+      }
+      if (closedCount > 0) {
+        console.log(`[v0] [PseudoPosMgr] Closed ${closedCount} positions for config ${configId} (${reason})`)
+      }
+      return closedCount
+    } catch (error) {
+      console.error(`[v0] [PseudoPosMgr] Failed to close positions for config ${configId}:`, error)
+      return 0
+    }
   }
 
   /**

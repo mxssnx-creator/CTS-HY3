@@ -136,6 +136,7 @@ import { IndicationProcessor } from "./indication-processor-fixed"
 import { StrategyProcessor } from "./strategy-processor"
 import { PseudoPositionManager } from "./pseudo-position-manager"
 import { RealtimeProcessor } from "./realtime-processor"
+import { LiveTradeProcessor } from "./live-trade-processor"
 import { logProgressionEvent } from "@/lib/engine-progression-logs"
 import { loadMarketDataForEngine } from "@/lib/market-data-loader"
 import { ProgressionStateManager } from "@/lib/progression-state-manager"
@@ -175,6 +176,7 @@ export class TradeEngineManager {
   private strategyProcessor: StrategyProcessor
   private pseudoPositionManager: PseudoPositionManager
   private realtimeProcessor: RealtimeProcessor
+  private liveTradeProcessor: LiveTradeProcessor
   private startTime?: Date
 
   // Track last cycle time for watchdog monitoring
@@ -194,6 +196,7 @@ export class TradeEngineManager {
     this.strategyProcessor = new StrategyProcessor(config.connectionId)
     this.pseudoPositionManager = new PseudoPositionManager(config.connectionId)
     this.realtimeProcessor = new RealtimeProcessor(config.connectionId)
+    this.liveTradeProcessor = new LiveTradeProcessor(config.connectionId)
 
     this.componentHealth = {
       indications: { status: "healthy", lastCycleDuration: 0, errorCount: 0, successRate: 100, cycleCount: 0 },
@@ -348,6 +351,11 @@ export class TradeEngineManager {
       )
       this.startRealtimeProcessor(config.realtimeInterval)
 
+      // Start live trade processor in its own cycle
+      await this.updateProgressionPhase("live_trades", 90, "Starting live trade processor")
+      this.liveTradeProcessor.start(config.realtimeInterval)
+      await logProgressionEvent(this.connectionId, "live_trades", "info", "Live trade processor started")
+
       // Verify timers are running
       setTimeout(async () => {
         if (this.indicationTimer && this.strategyTimer && this.realtimeTimer) {
@@ -459,6 +467,9 @@ export class TradeEngineManager {
       clearTimeout(this.realtimeTimer)
       this.realtimeTimer = undefined
     }
+    if (this.liveTradeProcessor) {
+      this.liveTradeProcessor.stop()
+    }
     if (this.healthCheckTimer) {
       clearInterval(this.healthCheckTimer)
       this.healthCheckTimer = undefined
@@ -498,6 +509,9 @@ export class TradeEngineManager {
       clearTimeout(this.realtimeTimer)
       this.realtimeTimer = undefined
     }
+    if (this.liveTradeProcessor) {
+      this.liveTradeProcessor.stop()
+    }
     if (this.healthCheckTimer) {
       clearInterval(this.healthCheckTimer)
       this.healthCheckTimer = undefined
@@ -531,6 +545,7 @@ export class TradeEngineManager {
     this.startIndicationProcessor(config.indicationInterval)
     this.startStrategyProcessor(config.strategyInterval)
     this.startRealtimeProcessor(config.realtimeInterval)
+    this.liveTradeProcessor.start(config.realtimeInterval)
     this.startHealthMonitoring()
     this.startHeartbeat()
 
