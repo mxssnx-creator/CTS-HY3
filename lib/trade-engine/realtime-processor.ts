@@ -349,7 +349,7 @@ export class RealtimeProcessor {
       // feeding the decision.
       if (Math.random() < 0.01) { // Log ~1% of cycles
         const prevTag = prevSetPos
-          ? ` | prevSet=${prevSetPos.status}/${prevSetPos.result.toFixed(2)}`
+          ? ` | prevSet=${prevSetPos.status}/${prevSetPos.result?.toFixed(2) ?? '0.00'}`
           : " | prevSet=none"
         console.log(
           `[v0] [Realtime] Monitoring ${position.symbol} ${side}: ` +

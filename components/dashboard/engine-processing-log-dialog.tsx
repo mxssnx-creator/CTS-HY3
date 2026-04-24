@@ -131,12 +131,6 @@ export function EngineProcessingLogDialog({ connectionId: propConnectionId }: { 
           isActive,
           cycleTimeMs,
           successRate,
-          intervalsProcessed: connLogData.summary?.enginePerformance?.cyclesCompleted || 0,
-          indicationsGenerated: Object.values(connLogData.summary?.indicationsCounts || {}).reduce((a: number, b: unknown) => a + Number(b || 0), 0),
-          strategiesEvaluated: Object.values(connLogData.summary?.strategyCounts || {}).reduce((a: number, b: any) => a + Number(b?.evaluated || 0), 0),
-          positionsCreated: connLogData.summary?.enginePerformance?.totalTrades || 0,
-          isRealtimeActive: engineData.components?.[0]?.phases?.realtime?.processing || false,
-          lastCycleTime: connLogData.summary?.enginePerformance?.cycleTimeMs || 0
         },
         performance: {
           avgCycleTimeMs:     cycleTimeMs,

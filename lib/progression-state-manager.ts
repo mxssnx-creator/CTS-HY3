@@ -66,7 +66,8 @@ export class ProgressionStateManager {
       let data: Record<string, string> = {}
       
       try {
-        data = await client.hgetall(key)
+        const fetched = await client.hgetall(key)
+        data = fetched || {}
       } catch (redisError) {
         console.warn(`[v0] Redis connection error reading progression:${connectionId}, using default state:`, redisError)
         return this.getDefaultState(connectionId)

@@ -114,7 +114,7 @@ export function configureAlertSettings() {
     channels: {
       webhook: {
         enabled: true,
-        url: process.env.SLACK_WEBHOOK_URL,
+        url: process.env.SLACK_WEBHOOK_URL!,
         headers: {
           'Authorization': 'Bearer your-token-if-required'
         }

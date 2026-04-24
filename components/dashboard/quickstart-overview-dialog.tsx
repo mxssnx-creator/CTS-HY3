@@ -177,7 +177,7 @@ export function QuickstartOverviewDialog() {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [expandedLog, setExpandedLog] = useState<number | null>(null)
-  const pollRef = useRef<NodeJS.Timeout>()
+  const pollRef = useRef<any>(null)
 
   const load = useCallback(async (silent = false) => {
     if (!connectionId) return
@@ -198,11 +198,11 @@ export function QuickstartOverviewDialog() {
   }, [connectionId])
 
   useEffect(() => {
-    clearInterval(pollRef.current)
+    if (pollRef.current) window.clearInterval(pollRef.current)
     if (!isOpen) return
     load()
-    pollRef.current = setInterval(() => load(true), 3000)
-    return () => clearInterval(pollRef.current)
+    pollRef.current = window.setInterval(() => load(true), 3000)
+    return () => { if (pollRef.current) window.clearInterval(pollRef.current) }
   }, [isOpen, load])
 
   const h   = stats?.historic

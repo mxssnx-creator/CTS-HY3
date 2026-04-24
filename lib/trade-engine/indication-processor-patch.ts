@@ -20,14 +20,14 @@ const PATCHED_SETTINGS = { data: null as any, timestamp: 0 }
 // Patch the processIndication method to ensure cache exists
 IndicationProcessor.prototype.processIndication = async function(symbol: string): Promise<any[]> {
   // Ensure cache exists before calling original method
-  if (!this.marketDataCache || !(this.marketDataCache instanceof Map)) {
+  if (!(this as any).marketDataCache || !((this as any).marketDataCache instanceof Map)) {
     (this as any).marketDataCache = PATCHED_CACHE
     console.log("[v0] [Patch] Initialized marketDataCache for symbol:", symbol)
   }
-  if (!this.settingsCache) {
+  if (!(this as any).settingsCache) {
     (this as any).settingsCache = PATCHED_SETTINGS
   }
-  if (!this.CACHE_TTL) {
+  if (!(this as any).CACHE_TTL) {
     (this as any).CACHE_TTL = 500
   }
   

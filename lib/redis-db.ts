@@ -660,6 +660,23 @@ export class InlineLocalRedis {
     return before - remaining.length
   }
 
+  /**
+   * Return elements in reverse order (highest score first).
+   * Start and stop are zero-based indices.
+   */
+  async zrevrange(key: string, start: number, stop: number): Promise<string[]> {
+    if (this.isExpired(key)) return []
+    const set = this.data.sorted_sets.get(key) || []
+    // Sort by score descending (highest first)
+    const sorted = [...set].sort((a, b) => b.score - a.score)
+    // Handle negative indices (like Python/Redis)
+    const len = sorted.length
+    const normalizedStart = start < 0 ? Math.max(0, len + start) : Math.min(start, len)
+    const normalizedStop = stop < 0 ? Math.max(0, len + stop) : Math.min(stop, len)
+    // Include the element at stop (Redis behavior)
+    return sorted.slice(normalizedStart, normalizedStop + 1).map((entry) => entry.member)
+  }
+
   async trackDatabaseOperation(limit: number): Promise<{ current: number; limit: number; exceeded: boolean }> {
     const globalTracker = globalThis as unknown as { __db_ops_tracker?: { timestamp: number; count: number } }
     const now = Date.now()
@@ -857,6 +874,9 @@ export function getRedisClient(): InlineLocalRedis {
 export function isRedisConnected(): boolean {
   return isConnected
 }
+
+// Export redisDb as an alias for getRedisClient (returns InlineLocalRedis instance)
+export const redisDb = getRedisClient
 
 // ========== Helpers ==========
 
@@ -1439,20 +1459,10 @@ export async function getAllIndications(): Promise<any[]> {
   return indications
 }
 
-export async function saveIndication(indication: any): Promise<void> {
-  await initRedis()
-  const client = getClient()
-  const id = indication.id
-  if (!id) {
-    throw new Error("Indication must have an id")
-  }
-  
-  const data = flattenForHmset({
-    ...indication,
-    updated_at: new Date().toISOString(),
-  })
-  
-  await client.hset(`indication:${id}`, data)
+export async function saveIndication(indication: any, customKey?: string): Promise<void> {
+  const client = getRedisClient()
+  const key = customKey || `indication:${indication.id}`
+  await client.hset(key, flattenForHmset(indication))
 }
 
 // ========== Strategy Operations ==========
@@ -2094,10 +2104,23 @@ export async function getRedisStats(): Promise<{
   }
 }
 
-export async function saveMarketData(symbol: string, timeframe: string, data: any): Promise<void> {
+export async function saveMarketData(symbol: string, timeframeOrData: string | any, data?: any): Promise<void> {
   const client = getRedisClient()
+  let timeframe: string
+  let marketData: any
+  
+  if (typeof timeframeOrData === "string") {
+    // Called with 3 arguments: saveMarketData(symbol, timeframe, data)
+    timeframe = timeframeOrData
+    marketData = data
+  } else {
+    // Called with 2 arguments: saveMarketData(symbol, data)
+    timeframe = timeframeOrData?.interval || timeframeOrData?.timeframe || "1m"
+    marketData = timeframeOrData
+  }
+  
   const key = `market_data:${symbol}:${timeframe}`
-  await client.set(key, JSON.stringify(data))
+  await client.set(key, JSON.stringify(marketData))
   // Set 24 hour TTL for market data
   await client.expire(key, 86400)
 }

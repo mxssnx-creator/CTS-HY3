@@ -308,9 +308,9 @@ export function QuickstartSection() {
   const [liveSummary, setLiveSummary] = useState<ExchangeLiveSummary | null>(null)
 
   const logsEndRef = useRef<HTMLDivElement>(null)
-  const pollRef    = useRef<NodeJS.Timeout>()
-  const configPollRef = useRef<NodeJS.Timeout>()
-  const livePollRef   = useRef<NodeJS.Timeout>()
+  const pollRef    = useRef<any>(null)
+  const configPollRef = useRef<any>(null)
+  const livePollRef   = useRef<any>(null)
 
   // ── fetch live stats ──────────────────────────────────────────────────────
   const fetchStats = useCallback(async (silent = false) => {
@@ -526,19 +526,19 @@ export function QuickstartSection() {
 
   // ── poll stats always (fast when expanded/running, slow otherwise) ────────
   useEffect(() => {
-    clearInterval(pollRef.current)
+    if (pollRef.current) window.clearInterval(pollRef.current)
     fetchStats()
     // Always poll: fast (3s) when expanded or running, slower (10s) otherwise
     const interval = (expanded || isRunning) ? 3000 : 10000
-    pollRef.current = setInterval(() => fetchStats(true), interval)
-    return () => clearInterval(pollRef.current)
+    pollRef.current = window.setInterval(() => fetchStats(true), interval)
+    return () => { if (pollRef.current) window.clearInterval(pollRef.current) }
   }, [expanded, isRunning, fetchStats])
 
   // ── Poll indication config-counts (settings-derived, slow cadence) ────────
   // 60s when expanded, 5min otherwise. This endpoint only changes when the
   // operator edits connection settings, so aggressive polling would be waste.
   useEffect(() => {
-    clearInterval(configPollRef.current)
+    if (configPollRef.current) window.clearInterval(configPollRef.current)
     const fetchConfig = () =>
       fetch("/api/indications/config-counts", { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null))
@@ -546,15 +546,15 @@ export function QuickstartSection() {
         .catch(() => { /* non-critical */ })
     fetchConfig()
     const interval = expanded ? 60_000 : 300_000
-    configPollRef.current = setInterval(fetchConfig, interval)
-    return () => clearInterval(configPollRef.current)
+    configPollRef.current = window.setInterval(fetchConfig, interval)
+    return () => { if (configPollRef.current) window.clearInterval(configPollRef.current) }
   }, [expanded])
 
   // ── Poll live exchange summary (positions + balance) ──────────────────────
   // 10s when expanded, 30s otherwise. Kept lightweight — this endpoint just
   // reads already-materialised Redis hashes, so frequent polling is fine.
   useEffect(() => {
-    clearInterval(livePollRef.current)
+    if (livePollRef.current) window.clearInterval(livePollRef.current)
     const fetchLive = () =>
       fetch("/api/exchange/live-summary", { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null))
@@ -562,8 +562,8 @@ export function QuickstartSection() {
         .catch(() => { /* non-critical */ })
     fetchLive()
     const interval = expanded ? 10_000 : 30_000
-    livePollRef.current = setInterval(fetchLive, interval)
-    return () => clearInterval(livePollRef.current)
+    livePollRef.current = window.setInterval(fetchLive, interval)
+    return () => { if (livePollRef.current) window.clearInterval(livePollRef.current) }
   }, [expanded])
 
   // ── log helper ─────────────────────────────────────────────────────────────

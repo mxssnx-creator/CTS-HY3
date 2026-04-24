@@ -100,7 +100,7 @@ async function getMarketDataForSymbol(symbol: string, client: any): Promise<{
  * Fetch real price from BingX public API as fallback for market data
  */
 async function fetchLivePriceFromExchange(symbol: string): Promise<{
-  close: number; open: number; high: number; low: number
+  close: number; open: number; high: number; low: number; volume: number
 } | null> {
   try {
     // BingX public ticker endpoint — no auth required
@@ -116,9 +116,10 @@ async function fetchLivePriceFromExchange(symbol: string): Promise<{
         const close = parseFloat(ticker.lastPrice)
         return {
           close,
-          open:  parseFloat(ticker.openPrice || String(close)),
-          high:  parseFloat(ticker.highPrice  || String(close * 1.01)),
+          open: parseFloat(ticker.openPrice || String(close)),
+          high: parseFloat(ticker.highPrice || String(close * 1.01)),
           low:   parseFloat(ticker.lowPrice   || String(close * 0.99)),
+          volume: 0,
         }
       }
     }
@@ -141,6 +142,7 @@ async function fetchLivePriceFromExchange(symbol: string): Promise<{
           open:  parseFloat(data.openPrice || String(close)),
           high:  parseFloat(data.highPrice  || String(close * 1.01)),
           low:   parseFloat(data.lowPrice   || String(close * 0.99)),
+          volume: 0,
         }
       }
     }
