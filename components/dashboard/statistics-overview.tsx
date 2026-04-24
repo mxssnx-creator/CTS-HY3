@@ -74,57 +74,58 @@ export function StatisticsOverview({ connections }: StatisticsOverviewProps) {
       }
 
       const statsPromises = connectionsList.map(async (conn) => {
-        // Use ONLY the progression API - it returns comprehensive data
-        let progressionData: any = null
+        // Use the /stats endpoint - single source of truth for all statistics
+        let statsData: any = null
         try {
-          const progResponse = await fetch(`/api/connections/progression/${conn.id}`)
-          if (progResponse.ok) {
-            const result = await progResponse.json()
-            progressionData = result
+          const statsResponse = await fetch(`/api/connections/progression/${conn.id}/stats`, {
+            cache: 'no-store'
+          })
+          if (statsResponse.ok) {
+            statsData = await statsResponse.json()
           }
         } catch {
-          // Progression may not be available yet
+          // Stats may not be available yet
         }
 
-        if (!progressionData || !progressionData.success) {
+        if (!statsData || !statsData.success) {
           return null
         }
 
-        const { state, metrics, progression } = progressionData
+        const { realtime, breakdown, liveExecution } = statsData
 
         return {
           connectionId: conn.id,
           connectionName: conn.name,
           indications: {
-            base: metrics?.indicationsCount || 0,
-            main: 0,
-            real: metrics?.indicationsCount || 0,
-            live: 0,
-            total: metrics?.indicationsCount || 0,
-            evaluated: (metrics?.indicationCycleCount || 0) * (metrics?.intervalsProcessed || 1),
-            cycleCount: metrics?.indicationCycleCount || 0,
+            base: breakdown?.indications?.direction || 0,
+            main: breakdown?.indications?.move || 0,
+            real: realtime?.indicationsTotal || 0,
+            live: breakdown?.indications?.auto || 0,
+            total: realtime?.indicationsTotal || 0,
+            evaluated: realtime?.indicationCycles || 0,
+            cycleCount: realtime?.indicationCycles || 0,
           },
           strategies: {
-            base: 0,
-            main: 0,
-            real: metrics?.strategiesCount || 0,
-            live: 0,
-            total: metrics?.strategiesCount || 0,
-            evaluated: metrics?.strategyCycleCount || 0,
-            cycleCount: metrics?.strategyCycleCount || 0,
+            base: breakdown?.strategies?.base || 0,
+            main: breakdown?.strategies?.main || 0,
+            real: realtime?.strategiesTotal || 0,
+            live: breakdown?.strategies?.live || 0,
+            total: realtime?.strategiesTotal || 0,
+            evaluated: realtime?.strategyCycles || 0,
+            cycleCount: realtime?.strategyCycles || 0,
             drawdown_max: 0,
             drawdown_time_hours: 0,
           },
           profit_factor: {
-            last_5: state?.cycleSuccessRate ? state.cycleSuccessRate / 50 : 0,
-            last_15: state?.cycleSuccessRate ? state.cycleSuccessRate / 45 : 0,
-            last_50: state?.cycleSuccessRate ? state.cycleSuccessRate / 40 : 0,
+            last_5: realtime?.successRate ? realtime.successRate / 50 : 0,
+            last_15: realtime?.successRate ? realtime.successRate / 45 : 0,
+            last_50: realtime?.successRate ? realtime.successRate / 40 : 0,
           },
           positions: {
-            total_evaluated: state?.totalTrades || 0,
-            winning: state?.successfulTrades || 0,
-            losing: (state?.totalTrades || 0) - (state?.successfulTrades || 0),
-            win_rate: state?.tradeSuccessRate || 0,
+            total_evaluated: liveExecution?.positionsCreated || realtime?.positionsOpen || 0,
+            winning: liveExecution?.wins || 0,
+            losing: (liveExecution?.positionsClosed || 0) - (liveExecution?.wins || 0),
+            win_rate: liveExecution?.winRate || 0,
           },
         } as any
       })

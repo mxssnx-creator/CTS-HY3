@@ -112,8 +112,9 @@ class ProcessingMetricsTracker {
   }
 
   /**
-   * Record phase start
-   */
+    * Record phase start
+    * Writes to both in-memory state and Redis for consistency with /stats endpoint
+    */
   recordPhaseStart(
     phase: 'prehistoric' | 'realtime' | 'indication' | 'strategy',
     itemsTotal: number,
@@ -126,11 +127,15 @@ class ProcessingMetricsTracker {
     phaseMetrics.currentTimeframe = timeframe
     phaseMetrics.progress = 0
     phaseMetrics.lastUpdate = new Date().toISOString()
+
+    // Write to Redis for /stats endpoint consistency
+    this.writePhaseToRedis(phase, 'start', itemsTotal, timeframe)
     this.broadcastMetricsUpdate(phase)
   }
 
   /**
    * Record phase progress
+   * Writes to both in-memory state and Redis for consistency with /stats endpoint
    */
   recordPhaseProgress(
     phase: 'prehistoric' | 'realtime' | 'indication' | 'strategy',
@@ -142,11 +147,15 @@ class ProcessingMetricsTracker {
     phaseMetrics.progress = phaseMetrics.itemsTotal > 0 ? (itemsProcessed / phaseMetrics.itemsTotal) * 100 : 0
     phaseMetrics.duration = totalDuration
     phaseMetrics.lastUpdate = new Date().toISOString()
+
+    // Write to Redis for /stats endpoint consistency
+    this.writePhaseToRedis(phase, 'progress', itemsProcessed, phaseMetrics.currentTimeframe, totalDuration)
     this.broadcastMetricsUpdate(phase)
   }
 
   /**
    * Record phase completion
+   * Writes to both in-memory state and Redis for consistency with /stats endpoint
    */
   recordPhaseCompletion(phase: 'prehistoric' | 'realtime' | 'indication' | 'strategy', duration: number): void {
     const phaseMetrics = this.metrics.phases[phase]
@@ -155,7 +164,68 @@ class ProcessingMetricsTracker {
     phaseMetrics.progress = 100
     phaseMetrics.duration = duration
     phaseMetrics.lastUpdate = new Date().toISOString()
+
+    // Write to Redis for /stats endpoint consistency
+    this.writePhaseToRedis(phase, 'completion', phaseMetrics.itemsTotal, phaseMetrics.currentTimeframe, duration)
     this.broadcastMetricsUpdate(phase)
+  }
+
+  /**
+   * Write phase data to Redis using canonical keys that /stats endpoint reads
+   */
+  private async writePhaseToRedis(
+    phase: string,
+    action: string,
+    itemsTotal?: number,
+    timeframe?: string,
+    duration?: number
+  ): Promise<void> {
+    try {
+      const client = getRedisClient()
+      const key = `progression:${this.connectionId}`
+      const nowIso = new Date().toISOString()
+
+      // Map phase to canonical cycle count field
+      const cycleFieldMap: Record<string, string> = {
+        'indication': 'indication_cycle_count',
+        'strategy': 'strategy_cycle_count',
+        'realtime': 'realtime_cycle_count',
+        'prehistoric': 'prehistoric_cycles_completed',
+      }
+
+      const updates: Record<string, string> = {
+        last_update: nowIso,
+      }
+
+      // Add cycle count increment for completions
+      if (action === 'completion' && cycleFieldMap[phase]) {
+        await client.hincrby(key, cycleFieldMap[phase], 1)
+      }
+
+      // Add items progress
+      if (itemsTotal !== undefined) {
+        updates[`${phase}_items_total`] = String(itemsTotal)
+      }
+      if (action === 'progress' || action === 'completion') {
+        const processed = action === 'completion' ? itemsTotal : this.metrics.phases[phase as keyof typeof this.metrics.phases].itemsProcessed
+        updates[`${phase}_items_processed`] = String(processed)
+        const total = this.metrics.phases[phase as keyof typeof this.metrics.phases].itemsTotal
+        const progress = total > 0 ? (Number(processed) / total) * 100 : 0
+        updates[`${phase}_progress`] = String(progress)
+      }
+
+      if (timeframe) {
+        updates[`${phase}_current_timeframe`] = timeframe
+      }
+      if (duration) {
+        updates[`${phase}_duration`] = String(duration)
+      }
+
+      await client.hset(key, updates)
+      await client.expire(key, 7 * 24 * 60 * 60) // 7 days
+    } catch (error) {
+      console.error('[ProcessingMetrics] Failed to write phase to Redis:', error)
+    }
   }
 
   /**
@@ -181,10 +251,43 @@ class ProcessingMetricsTracker {
   }
 
   /**
-   * Increment evaluation count
-   */
+    * Increment evaluation count
+    * Writes to both in-memory state and Redis (progression:{connectionId} hash)
+    * using atomic hincrby to ensure consistency with /stats endpoint
+    */
   incrementEvaluationCount(type: keyof ProcessingMetrics['evaluationCounts']): void {
     this.metrics.evaluationCounts[type] += 1
+
+    // Map to the canonical Redis hash field names used by /stats endpoint
+    const fieldMap: Record<string, string> = {
+      indicationBase: 'indications_base_evaluated',
+      indicationMain: 'indications_main_evaluated',
+      indicationOptimal: 'indications_optimal_evaluated',
+      strategyBase: 'strategies_base_evaluated',
+      strategyMain: 'strategies_main_evaluated',
+      strategyReal: 'strategies_real_evaluated',
+    }
+
+    const field = fieldMap[type]
+    if (field) {
+      this.writeToRedis(field, 1).catch((err) =>
+        console.error('[ProcessingMetrics] Failed to write evaluation count to Redis:', err)
+      )
+    }
+  }
+
+  /**
+   * Write metric to Redis using atomic hincrby
+   */
+  private async writeToRedis(field: string, increment: number): Promise<void> {
+    try {
+      const client = getRedisClient()
+      const key = `progression:${this.connectionId}`
+      await client.hincrby(key, field, increment)
+      await client.expire(key, 7 * 24 * 60 * 60) // 7 days
+    } catch (error) {
+      console.error('[ProcessingMetrics] Failed to write to Redis:', error)
+    }
   }
 
   /**

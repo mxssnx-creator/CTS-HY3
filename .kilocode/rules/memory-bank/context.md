@@ -79,3 +79,10 @@
   - Error context: ErrorProvider/useErrorContext in lib/error-context.tsx
   - Error UI: ErrorBanner (top), ErrorHint (title), ErrorSection (bottom)
   - Error hook: useErrorHandler in hooks/use-error-handler.ts
+
+- [x] Fixed Stats and Overview showing different values for same progress (2026-04-24)
+  - Root cause: Multiple components reading from different data sources (ProcessingMetricsTracker vs ProgressionStateManager vs /stats endpoint)
+  - Fix 1: Updated statistics-overview.tsx to use /stats endpoint (single source of truth)
+  - Fix 2: Updated processing-metrics.ts to write to canonical Redis keys (progression:{connectionId} hash)
+  - Fix 3: Updated /api/metrics/processing/route.ts to read from canonical Redis keys
+  - Result: All components now show consistent values for the same progress
