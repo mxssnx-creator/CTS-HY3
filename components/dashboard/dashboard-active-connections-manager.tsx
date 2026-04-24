@@ -84,22 +84,23 @@ export function DashboardActiveConnectionsManager() {
       const activeConns: ActiveConnectionWithDetails[] = []
       const seenIds = new Set<string>()
       
-      for (const conn of allConnections) {
-        // STABLE ASSIGNMENT RULE (fixes "connection gets re-added after enable/delete"):
-        // A card appears ONLY when the user explicitly assigned the connection to the
-        // Main Connections panel. We do NOT auto-include based on exchange type —
-        // that caused bybit/bingx cards to re-materialize on every 8s poll even after
-        // the user removed/disabled them.
-        const isActiveInserted =
-          toBoolean(conn.is_active_inserted) ||
-          toBoolean(conn.is_dashboard_inserted) ||
-          toBoolean((conn as any).is_assigned)
+       for (const conn of allConnections) {
+         // STABLE ASSIGNMENT RULE (fixes "connection gets re-added after enable/delete"):
+         // A card appears ONLY when the user explicitly assigned the connection to the
+         // Main Connections panel. We do NOT auto-include based on exchange type —
+         // that caused bybit/bingx cards to re-materialize on every 8s poll even after
+         // the user removed/disabled them.
+         // Only check is_active_inserted and is_assigned (NOT is_dashboard_inserted which
+         // is a separate flag that doesn't indicate panel membership).
+         const isActiveInserted =
+           toBoolean(conn.is_active_inserted) ||
+           toBoolean((conn as any).is_assigned)
 
-        // isEnabledDashboard = connection's dashboard toggle is ON (processing enabled)
-        const isEnabledDashboard =
-          toBoolean(conn.is_enabled_dashboard)
+         // isEnabledDashboard = connection's dashboard toggle is ON (processing enabled)
+         const isEnabledDashboard =
+           toBoolean(conn.is_enabled_dashboard)
 
-        if (isActiveInserted || isEnabledDashboard) {
+         if (isActiveInserted || isEnabledDashboard) {
           if (seenIds.has(conn.id)) continue
           seenIds.add(conn.id)
           const exchange = (conn.exchange || "").toLowerCase().trim()

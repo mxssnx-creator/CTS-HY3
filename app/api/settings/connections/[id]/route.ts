@@ -1,8 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { SystemLogger } from "@/lib/system-logger"
-import { getConnection, updateConnection, deleteConnection, initRedis } from "@/lib/redis-db"
+import { getConnection, updateConnection, deleteConnection, initRedis, getRedisClient } from "@/lib/redis-db"
 import { ConnectionDataArchive } from "@/lib/connection-data-archive"
 import { notifySettingsChanged, detectChangedFields } from "@/lib/settings-coordinator"
+import { isBaseConnection, markBaseConnectionDeleted } from "@/lib/redis-migrations"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -68,6 +69,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     console.log(`[v0] Archiving data for connection ${id}...`)
     await ConnectionDataArchive.archiveConnectionData(id)
+
+    // Mark base connections as deleted so ensureBaseConnections() won't recreate them
+    if (isBaseConnection(id)) {
+      const client = getRedisClient()
+      await markBaseConnectionDeleted(client, id)
+    }
 
     await deleteConnection(id)
 

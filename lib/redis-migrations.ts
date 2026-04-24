@@ -767,7 +767,7 @@ const migrations: Migration[] = [
   },
 ]
 
-const BASE_CONNECTION_CONFIG: Array<{
+export const BASE_CONNECTION_CONFIG: Array<{
   id: string
   name: string
   exchange: string
@@ -780,9 +780,48 @@ const BASE_CONNECTION_CONFIG: Array<{
   { id: "orangex-x01", name: "OrangeX Base", exchange: "orangex", credentialId: "orangex-x01", autoActive: false },
 ]
 
+/**
+ * Check if a connection ID is a base connection
+ */
+export function isBaseConnection(connectionId: string): boolean {
+  return BASE_CONNECTION_CONFIG.some(cfg => cfg.id === connectionId)
+}
+
+/**
+ * Mark a base connection as deleted so ensureBaseConnections() won't recreate it.
+ * Uses a Redis set "deleted_base_connections" to track deleted base connection IDs.
+ */
+export async function markBaseConnectionDeleted(client: any, connectionId: string): Promise<void> {
+  if (!isBaseConnection(connectionId)) {
+    return // Not a base connection, no need to track
+  }
+  await client.sadd("deleted_base_connections", connectionId)
+  console.log(`[v0] [Migrations] Marked base connection as deleted: ${connectionId}`)
+}
+
+/**
+ * Unmark a base connection as deleted (used if user wants to re-add it later).
+ */
+export async function unmarkBaseConnectionDeleted(client: any, connectionId: string): Promise<void> {
+  await client.srem("deleted_base_connections", connectionId)
+  console.log(`[v0] [Migrations] Unmarked base connection as deleted: ${connectionId}`)
+}
+
+/**
+ * Get the set of deleted base connection IDs
+ */
+async function getDeletedBaseConnections(client: any): Promise<Set<string>> {
+  const deleted = await client.smembers("deleted_base_connections").catch(() => []) || []
+  return new Set(deleted)
+}
+
 async function ensureBaseConnections(client: any): Promise<{ createdOrUpdated: number; credentialsInjected: number }> {
   let createdOrUpdated = 0
   let credentialsInjected = 0
+
+  // Get the set of deleted base connections to avoid recreating them
+  const deletedBaseConns = await getDeletedBaseConnections(client)
+  console.log(`[v0] [Migrations] Deleted base connections: ${Array.from(deletedBaseConns).join(", ") || "none"}`)
 
   const legacyIds = ["bybit-base", "bingx-base", "binance-base", "okx-base", "bybit-default-disabled", "bingx-default-disabled"]
   for (const legacyId of legacyIds) {
@@ -795,6 +834,12 @@ async function ensureBaseConnections(client: any): Promise<{ createdOrUpdated: n
   }
 
   for (const cfg of BASE_CONNECTION_CONFIG) {
+    // Skip base connections that were explicitly deleted by the user
+    if (deletedBaseConns.has(cfg.id)) {
+      console.log(`[v0] [Migrations] Skipping deleted base connection: ${cfg.id}`)
+      continue
+    }
+
     const now = new Date().toISOString()
     const existing = await client.hgetall(`connection:${cfg.id}`)
     const hasExisting = existing && Object.keys(existing).length > 0
@@ -808,7 +853,9 @@ async function ensureBaseConnections(client: any): Promise<{ createdOrUpdated: n
       exchange: (existing?.exchange as string) || cfg.exchange,
       is_predefined: "0",
       is_inserted: (existing?.is_inserted as string) || "1",
-      is_dashboard_inserted: (existing?.is_dashboard_inserted as string) || "1",
+      // PRESERVE existing is_dashboard_inserted - don't default to "1" as that causes
+      // connections to reappear in the dashboard after being removed (since "0" is falsy in JS).
+      is_dashboard_inserted: (existing?.is_dashboard_inserted as string) !== undefined ? (existing?.is_dashboard_inserted as string) : "0",
       is_active_inserted: cfg.autoActive ? "1" : ((existing?.is_active_inserted as string) || "0"),
       // Base connections are enabled in Settings by default.
       is_enabled: (existing?.is_enabled as string) || "1",
