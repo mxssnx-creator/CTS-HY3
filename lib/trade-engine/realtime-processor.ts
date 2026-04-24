@@ -28,6 +28,7 @@ import { StrategyConfigManager, type PseudoPosition } from "@/lib/strategy-confi
 // multiple processors (indication, strategy, realtime) share the same
 // warm entries.
 import { getMarketDataCached, prefetchMarketDataBatch } from "./market-data-cache"
+import { AutoIndicationEngine, type AutoIndicationMetrics } from "@/lib/auto-indication-engine"
 
 export class RealtimeProcessor {
   private connectionId: string
@@ -70,10 +71,20 @@ export class RealtimeProcessor {
   private lastPositionsCount = -1
   private static readonly HEARTBEAT_INTERVAL_MS = 1000
 
+  // ── Situation tracking ─────────────────────────────────────────────
+  // Track market "Situation" (capital S) changes to update opened pseudo
+  // positions independently of indication/strategy processings.
+  private lastSituation: AutoIndicationMetrics | null = null
+  private lastSituationCheck = 0
+  private static readonly SITUATION_CHECK_MS = 5000
+  private autoEngine: AutoIndicationEngine
+
   constructor(connectionId: string) {
     this.connectionId = connectionId
     this.positionManager = new PseudoPositionManager(connectionId)
     this.strategy = new StrategyConfigManager(connectionId)
+    // Initialize AutoIndicationEngine for "Situation" (capital S) detection
+    this.autoEngine = new AutoIndicationEngine(connectionId)
   }
 
   /**

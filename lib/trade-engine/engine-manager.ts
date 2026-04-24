@@ -135,7 +135,7 @@ import { DataSyncManager } from "@/lib/data-sync-manager"
 import { IndicationProcessor } from "./indication-processor-fixed"
 import { StrategyProcessor } from "./strategy-processor"
 import { PseudoPositionManager } from "./pseudo-position-manager"
-import { RealtimeProcessor } from "./realtime-processor"
+import { RealtimeProcessor } from "./realtime-process-or"
 import { LiveTradeProcessor } from "./live-trade-processor"
 import { logProgressionEvent } from "@/lib/engine-progression-logs"
 import { loadMarketDataForEngine } from "@/lib/market-data-loader"
@@ -230,10 +230,12 @@ export class TradeEngineManager {
       // Initialize progression state in Redis if not exists
       try {
         const client = getRedisClient()
-        const existingProgression = await client.hgetall(`progression:${this.connectionId}`)
+        // Use UNIQUE REALTIME key for engine-manager (realtime progression)
+        const realtimeKey = ProgressionStateManager.getRealtimeKey(this.connectionId)
+        const existingProgression = await client.hgetall(realtimeKey)
         if (!existingProgression || Object.keys(existingProgression).length === 0) {
           // First time initialization - set all counters to 0
-          await client.hset(`progression:${this.connectionId}`, {
+          await client.hset(realtimeKey, {
             cycles_completed: "0",
             successful_cycles: "0",
             failed_cycles: "0",
@@ -243,7 +245,7 @@ export class TradeEngineManager {
           })
         } else {
           // Engine restarted - preserve existing counters, only update metadata
-          await client.hset(`progression:${this.connectionId}`, {
+          await client.hset(realtimeKey, {
             last_update: new Date().toISOString(),
             engine_started: "true",
           })
@@ -1012,7 +1014,8 @@ export class TradeEngineManager {
         //   * indications_count / per-type    — cumulative indications generated (hincrby).
         try {
           const client = getRedisClient()
-          const redisKey = `progression:${this.connectionId}`
+          // UNIQUE REALTIME KEY
+          const redisKey = ProgressionStateManager.getRealtimeKey(this.connectionId)
           // Fan-out all counter updates in parallel. The in-memory Redis
           // client services these in constant time; Promise.all minimises the
           // awaited round-trips per cycle compared to sequential awaits.
@@ -1239,7 +1242,8 @@ export class TradeEngineManager {
         //     pipeline and are NOT added here, so cross-symbol sums are safe.
         try {
           const client = getRedisClient()
-          const redisKey = `progression:${this.connectionId}`
+          // UNIQUE REALTIME KEY
+          const redisKey = ProgressionStateManager.getRealtimeKey(this.connectionId)
           await client.hincrby(redisKey, "strategy_cycle_count", 1)
           if (evaluatedThisCycle > 0) {
             await client.hincrby(redisKey, "strategy_live_cycle_count", 1)

@@ -51,7 +51,22 @@ export interface ProgressionState {
 
 export class ProgressionStateManager {
   /**
+   * Get UNIQUE Redis key for PreHistoric progression
+   */
+  static getPrehistoricKey(connectionId: string): string {
+    return `progression:${connectionId}:prehistoric`
+  }
+
+  /**
+   * Get UNIQUE Redis key for Realtime progression
+   */
+  static getRealtimeKey(connectionId: string): string {
+    return `progression:${connectionId}:realtime`
+  }
+
+  /**
    * Get current progression state for a connection
+   * NOTE: Now uses separate keys for prehistoric vs realtime
    */
   static async getProgressionState(connectionId: string): Promise<ProgressionState> {
     try {
@@ -62,11 +77,15 @@ export class ProgressionStateManager {
         return this.getDefaultState(connectionId)
       }
 
-      const key = `progression:${connectionId}`
+      // Read from BOTH keys and merge
+      const prehistoricKey = this.getPrehistoricKey(connectionId)
+      const realtimeKey = this.getRealtimeKey(connectionId)
+
       let data: Record<string, string> = {}
       
       try {
-        const fetched = await client.hgetall(key)
+        // Try realtime first (most recent activity)
+        const fetched = await client.hgetall(realtimeKey)
         data = fetched || {}
       } catch (redisError) {
         console.warn(`[v0] Redis connection error reading progression:${connectionId}, using default state:`, redisError)
@@ -170,7 +189,8 @@ export class ProgressionStateManager {
         return
       }
 
-      const redisKey = `progression:${connectionId}`
+      // UNIQUE REALTIME KEY - separate from prehistoric
+      const redisKey = ProgressionStateManager.getRealtimeKey(connectionId)
 
       // CRITICAL FIX: use atomic hincrby instead of read-modify-write hset.
       // Three processors (indication/strategy/realtime) call incrementCycle
@@ -251,7 +271,8 @@ export class ProgressionStateManager {
   static async incrementPrehistoricCycle(connectionId: string, symbol: string): Promise<void> {
     try {
       const client = getRedisClient()
-      const key = `progression:${connectionId}`
+      // UNIQUE PREHISTORIC KEY
+      const key = ProgressionStateManager.getPrehistoricKey(connectionId)
 
       // PERFORMANCE: The previous implementation called `getProgressionState`
       // which does a full `hgetall` + JSON parse on every call — expensive
@@ -295,7 +316,8 @@ export class ProgressionStateManager {
   static async completePrehistoricPhase(connectionId: string): Promise<void> {
     try {
       const client = getRedisClient()
-      const key = `progression:${connectionId}`
+      // UNIQUE PREHISTORIC KEY
+      const key = ProgressionStateManager.getPrehistoricKey(connectionId)
 
       await client.hset(key, {
         prehistoric_phase_active: "false",
@@ -334,7 +356,8 @@ export class ProgressionStateManager {
         console.warn(`[v0] Redis client not available for recordTrade`)
         return
       }
-      const key = `progression:${connectionId}`
+      // UNIQUE REALTIME KEY
+      const key = ProgressionStateManager.getRealtimeKey(connectionId)
 
       // Atomic counter increments. Kick off both counters concurrently — hincrby
       // returns the post-increment value so we can derive the success rate from
@@ -421,9 +444,14 @@ export class ProgressionStateManager {
   static async resetProgressionState(connectionId: string): Promise<void> {
     try {
       const client = getRedisClient()
-      const key = `progression:${connectionId}`
-      await client.del(key)
-      console.log(`[v0] [Progression] State reset for ${connectionId}`)
+      // Clear BOTH prehistoric and realtime keys
+      const prehistoricKey = ProgressionStateManager.getPrehistoricKey(connectionId)
+      const realtimeKey = ProgressionStateManager.getRealtimeKey(connectionId)
+      await Promise.all([
+        client.del(prehistoricKey),
+        client.del(realtimeKey),
+      ])
+      console.log(`[v0] [Progression] State reset for ${connectionId} (both prehistoric + realtime)`)
     } catch (error) {
       console.error(`[v0] Failed to reset progression state for ${connectionId}:`, error)
     }
