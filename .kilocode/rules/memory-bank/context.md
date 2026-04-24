@@ -43,6 +43,12 @@
   - Fixed Redis persistence (saveToDisk/saveToDiskSync) with better error logging and directory checks
   - Fixed TypeScript errors in error-section.tsx (severity sorting, timestamp comparison)
   - Ensured health checks and engine refresh run continuously via startGlobalHealthMonitoring
+  - [x] Fixed QuickStart failing (2026-04-24)
+    - Fixed patchIndicationProcessorCaches to use engineManagers (not engines)
+    - Fixed Redis key patterns in stats section to read from progression:{connId} hash
+    - Fixed variable name references (strategyCounts -> strategies*Count, strategyEvaluated -> strategyEvaluated*)
+    - Fixed return statement to use correct variable names
+    - Quick-start endpoint now returns success:true with actual engine data
 
 
 ### Current Focus
