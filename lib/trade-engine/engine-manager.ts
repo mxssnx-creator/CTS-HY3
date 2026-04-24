@@ -1,14 +1,15 @@
 /**
- * Trade Engine Manager V11
+ * Trade Engine Manager V11.1
  * Manages asynchronous processing for symbols, indications, pseudo positions, and strategies
  * V10: Define totalStrategiesEvaluated globally to prevent stale closure ReferenceError
  * V11: Self-scheduling setTimeout loops with configurable cycle pause
  *      (app_settings.cyclePauseMs, default 50 ms) to fix 4 s+ cycle hang.
- * @version 11.0.0
- * @lastUpdate 2026-04-20 — self-scheduling cycle loops
+ * V11.1: SOLID - Removed version-based clearing to prevent engine restarts
+ * @version 11.1.0
+ * @lastUpdate 2026-04-20 — self-scheduling cycle loops (SOLID mode)
  */
 
-const _ENGINE_BUILD_VERSION = "11.0.0"
+const _ENGINE_BUILD_VERSION = "11.1.0"
 
 // Type for global engine state
 interface EngineGlobalState {
@@ -20,35 +21,8 @@ interface EngineGlobalState {
 
 const engineGlobal = (typeof globalThis !== "undefined" ? globalThis : {}) as EngineGlobalState
 
-// Skip version check during HMR (only clear on explicit version change in production)
-const isHMREngine = process.env.NODE_ENV === "development" && 
-  engineGlobal.__hmr_timestamp && 
-  (Date.now() - engineGlobal.__hmr_timestamp) < 5000
-
-if (!isHMREngine && engineGlobal.__engine_version !== _ENGINE_BUILD_VERSION) {
-  console.log(`[v0] Engine version change: ${engineGlobal.__engine_version} -> ${_ENGINE_BUILD_VERSION}, clearing stale timers...`)
-  
-  // Clear any registered timers from old version
-  if (engineGlobal.__engine_timers) {
-    for (const timer of engineGlobal.__engine_timers) {
-      clearInterval(timer)
-    }
-    engineGlobal.__engine_timers.clear()
-    console.log(`[v0] Cleared stale engine timers`)
-  }
-  
-  // Clear old engine instances
-  if (engineGlobal.__engine_instances) {
-    engineGlobal.__engine_instances.clear()
-  }
-  
-  engineGlobal.__engine_version = _ENGINE_BUILD_VERSION
-}
-
-// Track HMR timestamp to avoid clearing on hot reload
-if (process.env.NODE_ENV === "development") {
-  engineGlobal.__hmr_timestamp = Date.now()
-}
+// SOLID: No version-based clearing - engines must remain stable and not restart
+console.log(`[v0] Trade Engine Manager V${_ENGINE_BUILD_VERSION} loading (SOLID - no auto-restart)...`)
 
 if (typeof globalThis.totalStrategiesEvaluated === "undefined") {
   globalThis.totalStrategiesEvaluated = 0
@@ -497,6 +471,66 @@ export class TradeEngineManager {
     await this.updateProgressionPhase("stopped", 0, "Engine stopped")
 
     console.log("[v0] Trade engine stopped and timers cleared")
+  }
+
+  /**
+   * Pause the trade engine (stop timers but keep state for resume)
+   * SOLID: Unlike stop(), this preserves all engine state for resuming
+   */
+  async pause(): Promise<void> {
+    console.log("[v0] Pausing trade engine for connection:", this.connectionId)
+
+    // Clear timers but keep isRunning flag so resume knows we're paused
+    if (this.indicationTimer) {
+      clearTimeout(this.indicationTimer)
+      this.indicationTimer = undefined
+    }
+    if (this.strategyTimer) {
+      clearTimeout(this.strategyTimer)
+      this.strategyTimer = undefined
+    }
+    if (this.realtimeTimer) {
+      clearTimeout(this.realtimeTimer)
+      this.realtimeTimer = undefined
+    }
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer)
+      this.healthCheckTimer = undefined
+    }
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer)
+      this.heartbeatTimer = undefined
+    }
+
+    // Mark as paused (not stopped) - this allows resume() to work
+    await this.updateEngineState("paused")
+    await this.setRunningFlag(false)
+    await this.updateProgressionPhase("paused", 50, "Engine paused - ready to resume")
+
+    console.log("[v0] Trade engine paused (state preserved for resume)")
+  }
+
+  /**
+   * Resume the trade engine from paused state
+   * SOLID: Restarts timers without full re-initialization
+   */
+  async resume(config: EngineConfig): Promise<void> {
+    console.log("[v0] Resuming trade engine for connection:", this.connectionId)
+
+    // Update state
+    await this.updateEngineState("running")
+    await this.setRunningFlag(true)
+    this.isRunning = true
+
+    // Restart all processors
+    this.startIndicationProcessor(config.indicationInterval)
+    this.startStrategyProcessor(config.strategyInterval)
+    this.startRealtimeProcessor(config.realtimeInterval)
+    this.startHealthMonitoring()
+    this.startHeartbeat()
+
+    await this.updateProgressionPhase("resumed", 75, "Engine resumed - processors restarted")
+    console.log("[v0] Trade engine resumed successfully")
   }
 
   /**

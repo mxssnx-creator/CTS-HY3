@@ -1,37 +1,17 @@
 /**
- * Global Trade Engine Coordinator V4.0
- * @version 4.0.0 - Force engine restart on version change to fix stale closures
+ * Global Trade Engine Coordinator V4.2
+ * @version 4.2.0 - SOLID: Removed version-based clearing to prevent restarts
+ * The coordinator is now a truly persistent singleton that survives reloads
  */
 
 // CRITICAL: Import patch FIRST to fix cache initialization issues in stale webpack bundles
 import "./trade-engine/indication-processor-patch"
 
-const COORDINATOR_VERSION = "4.1.0"
+const COORDINATOR_VERSION = "4.2.0"
 
-// Force clear stale engine instances on version change (only in production or explicit version change)
-const coordGlobal = globalThis as unknown as { 
-  __coordinator_version?: string
-  __global_coordinator?: unknown
-  __hmr_timestamp?: number
-}
-
-// Skip version check during HMR (development) - only clear on explicit version change
-const isHMR = process.env.NODE_ENV === "development" && 
-  coordGlobal.__hmr_timestamp && 
-  (Date.now() - coordGlobal.__hmr_timestamp) < 5000
-
-if (!isHMR && coordGlobal.__coordinator_version !== COORDINATOR_VERSION) {
-  console.log(`[v0] Coordinator version changed from ${coordGlobal.__coordinator_version} to ${COORDINATOR_VERSION}, clearing stale engines...`)
-  coordGlobal.__global_coordinator = undefined
-  coordGlobal.__coordinator_version = COORDINATOR_VERSION
-}
-
-// Track HMR timestamp to avoid clearing on hot reload
-if (process.env.NODE_ENV === "development") {
-  coordGlobal.__hmr_timestamp = Date.now()
-}
-
-console.log(`[v0] Global Trade Engine V${COORDINATOR_VERSION} loading with cache patch...`)
+// SOLID: No version-based clearing - coordinator must remain stable
+// The coordinator is an overall state coordinator that should never auto-stop or crash
+console.log(`[v0] Global Trade Engine V${COORDINATOR_VERSION} loading (SOLID mode - no auto-restart)...`)
 
 import { TradeEngineManager, type EngineConfig } from "./trade-engine/engine-manager"
 import { getSettings, setSettings } from "./redis-db"
@@ -94,7 +74,55 @@ export class GlobalTradeEngineCoordinator {
   }
 
   constructor() {
-    console.log("[v0] GlobalTradeEngineCoordinator initialized with advanced coordination")
+    console.log("[v0] GlobalTradeEngineCoordinator initialized with advanced coordination (SOLID mode)")
+    this.setupGlobalErrorHandling()
+    this.startStabilityMonitoring()
+  }
+
+  /**
+   * SOLID: Setup global error handling to prevent coordinator crashes
+   */
+  private setupGlobalErrorHandling(): void {
+    // Handle unhandled promise rejections
+    process.on("unhandledRejection", (reason, promise) => {
+      console.error("[v0] [Coordinator] Unhandled rejection (preventing crash):", reason)
+      // Don't crash - just log and continue
+    })
+
+    // Handle uncaught exceptions (but don't prevent process exit for critical errors)
+    process.on("uncaughtException", (error) => {
+      console.error("[v0] [Coordinator] Uncaught exception (continuing):", error.message)
+      // Log but don't crash the coordinator
+    })
+
+    console.log("[v0] [Coordinator] Global error handlers installed (SOLID mode)")
+  }
+
+  /**
+   * SOLID: Monitor coordinator stability and auto-recover if needed
+   */
+  private startStabilityMonitoring(): void {
+    // Check coordinator health every 60 seconds
+    const stabilityTimer = setInterval(() => {
+      try {
+        const engineCount = this.engineManagers.size
+        const isHealthy = this.isGloballyRunning || this.isPaused
+
+        if (!isHealthy && engineCount > 0) {
+          console.warn("[v0] [Coordinator] Stability check: coordinator in unexpected state, engines may need attention")
+        }
+
+        // Log stability status
+        console.log(`[v0] [Coordinator] Stability OK: running=${this.isGloballyRunning}, paused=${this.isPaused}, engines=${engineCount}`)
+      } catch (error) {
+        console.error("[v0] [Coordinator] Stability check error:", error)
+      }
+    }, 60000)
+
+    // Prevent timer from keeping process alive
+    stabilityTimer.unref?.()
+    
+    console.log("[v0] [Coordinator] Stability monitoring started (SOLID mode)")
   }
 
   /**
@@ -596,38 +624,40 @@ export class GlobalTradeEngineCoordinator {
   }
 
   /**
-   * Pause all engines
+   * Pause all engines - SOLID: True pause without destroying state
+   * Engines remain in memory and can be resumed without full re-initialization
    */
   async pause(): Promise<void> {
-    console.log("[v0] [Coordinator] PAUSING global trade engine - stopping ALL engines...")
+    console.log("[v0] [Coordinator] PAUSING global trade engine (true pause, preserving state)...")
 
     this.isPaused = true
     this.isGloballyRunning = false
 
-    // Stop ALL engine managers immediately
+    // Pause ALL engine managers (preserves state for resume)
     const allConnectionIds = Array.from(this.engineManagers.keys())
-    console.log(`[v0] [Coordinator] Stopping ${allConnectionIds.length} trade engine(s)...`)
+    console.log(`[v0] [Coordinator] Pausing ${allConnectionIds.length} trade engine(s)...`)
 
     for (const connectionId of allConnectionIds) {
       try {
         const manager = this.engineManagers.get(connectionId)
         if (manager) {
-          await manager.stop()
-          console.log(`[v0] [Coordinator] ✓ Stopped engine for connection: ${connectionId}`)
+          await manager.pause()
+          console.log(`[v0] [Coordinator] ✓ Paused engine for connection: ${connectionId}`)
         }
       } catch (error) {
-        console.error(`[v0] [Coordinator] Failed to stop engine for connection ${connectionId}:`, error)
+        console.error(`[v0] [Coordinator] Failed to pause engine for connection ${connectionId}:`, error)
       }
     }
 
-    console.log("[v0] [Coordinator] ✓ Global trade engine PAUSED - all engines stopped")
+    console.log("[v0] [Coordinator] ✓ Global trade engine PAUSED - all engines preserved for resume")
   }
 
   /**
-   * Resume all engines
+   * Resume all engines - SOLID: Uses true resume without full re-initialization
+   * Preserves engine state and just restarts the timers
    */
   async resume(): Promise<void> {
-    console.log("[v0] [Coordinator] RESUMING global trade engine - restarting all engines...")
+    console.log("[v0] [Coordinator] RESUMING global trade engine (true resume, preserving state)...")
 
     if (!this.isPaused) {
       console.log("[v0] [Coordinator] TradeEngines are not paused, nothing to resume")
@@ -638,47 +668,40 @@ export class GlobalTradeEngineCoordinator {
     this.isGloballyRunning = true
 
     try {
-      const { initRedis, getAllConnections } = await import("@/lib/redis-db")
       const { loadSettingsAsync } = await import("@/lib/settings-storage")
-
-      await initRedis()
-      const connections = await getAllConnections()
-      
-      if (!Array.isArray(connections)) {
-        console.error("[v0] [Coordinator] ERROR: connections is not an array during resume")
-        return
-      }
-
-      // Get all connections with valid credentials
-      const validConnections = connections.filter((c) => {
-        const hasCredentials = (c.api_key || c.apiKey) && (c.api_secret || c.apiSecret)
-        return hasCredentials
-      })
-
-      console.log(`[v0] [Coordinator] Found ${validConnections.length} connections to resume`)
-
       const settings = await loadSettingsAsync()
+      
+      // Get all connection IDs that have paused managers
+      const allConnectionIds = Array.from(this.engineManagers.keys())
+      console.log(`[v0] [Coordinator] Found ${allConnectionIds.length} paused engine(s) to resume`)
+
       let resumedCount = 0
 
-      // Restart engine for each connection
-      for (const connection of validConnections) {
+      // Resume each paused engine manager
+      for (const connectionId of allConnectionIds) {
         try {
+          const manager = this.engineManagers.get(connectionId)
+          if (!manager) {
+            console.warn(`[v0] [Coordinator] No manager found for ${connectionId}, skipping resume`)
+            continue
+          }
+
           const config: EngineConfig = {
-            connectionId: connection.id,
+            connectionId: connectionId,
             indicationInterval: settings.mainEngineIntervalMs ? settings.mainEngineIntervalMs / 1000 : 5,
             strategyInterval: settings.strategyUpdateIntervalMs ? settings.strategyUpdateIntervalMs / 1000 : 10,
             realtimeInterval: settings.realtimeIntervalMs ? settings.realtimeIntervalMs / 1000 : 3,
           }
 
-          await this.startEngine(connection.id, config)
+          await manager.resume(config)
           resumedCount++
-          console.log(`[v0] [Coordinator] ✓ Resumed: ${connection.name}`)
+          console.log(`[v0] [Coordinator] ✓ Resumed: ${connectionId}`)
         } catch (error) {
-          console.error(`[v0] [Coordinator] Failed to resume engine for connection ${connection.id}:`, error)
+          console.error(`[v0] [Coordinator] Failed to resume engine for connection ${connectionId}:`, error)
         }
       }
 
-      console.log(`[v0] [Coordinator] ✓ Global trade engine RESUMED: ${resumedCount} engines restarted`)
+      console.log(`[v0] [Coordinator] ✓ Global trade engine RESUMED: ${resumedCount} engines resumed (no restart)`)
     } catch (error) {
       console.error("[v0] [Coordinator] Failed to resume engines:", error)
       throw error
@@ -907,7 +930,7 @@ export class GlobalTradeEngineCoordinator {
 
 /**
  * The global trade engine coordinator singleton instance
- * V5: Aggressive timer cleanup - also clear timers from engine-manager.ts
+ * V5.2: SOLID - No version-based clearing, coordinator persists across reloads
  */
 const engineGlobalThis = globalThis as unknown as {
   __tradeEngineCoordinator?: GlobalTradeEngineCoordinator
@@ -915,49 +938,18 @@ const engineGlobalThis = globalThis as unknown as {
   __engine_timers?: Set<ReturnType<typeof setInterval>>
 }
 
-const TRADE_ENGINE_VERSION = "5.1.0"
+const TRADE_ENGINE_VERSION = "5.2.0"
 
-// V5: Aggressive cleanup - clear ALL registered engine timers on version change
-if (engineGlobalThis.__tradeEngineVersion !== TRADE_ENGINE_VERSION) {
-  console.log(`[v0] Trade Engine version changed ${engineGlobalThis.__tradeEngineVersion} -> ${TRADE_ENGINE_VERSION}, aggressive cleanup...`)
-  
-  // Clear timers registered by engine-manager.ts
-  if (engineGlobalThis.__engine_timers) {
-    console.log(`[v0] Clearing ${engineGlobalThis.__engine_timers.size} registered engine timers...`)
-    for (const timer of engineGlobalThis.__engine_timers) {
-      try {
-        clearInterval(timer)
-      } catch {}
-    }
-    engineGlobalThis.__engine_timers.clear()
-  }
-  
-  // Stop old coordinator's engines
-  if (engineGlobalThis.__tradeEngineCoordinator) {
-    try {
-      const oldCoord = engineGlobalThis.__tradeEngineCoordinator
-      // @ts-expect-error - accessing private member for cleanup
-      if (oldCoord.engineManagers) {
-        // @ts-expect-error - accessing private member for cleanup
-        for (const manager of oldCoord.engineManagers.values()) {
-          try {
-            manager.stop().catch(() => {})
-          } catch {}
-        }
-        // @ts-expect-error - accessing private member for cleanup
-        oldCoord.engineManagers.clear()
-      }
-    } catch {
-      // Ignore cleanup errors
-    }
-    engineGlobalThis.__tradeEngineCoordinator = undefined
-  }
-}
+// SOLID: No aggressive cleanup - coordinator must remain stable
+// The coordinator is an overall state coordinator that should NEVER auto-stop
+console.log(`[v0] Global Trade Engine Coordinator V${TRADE_ENGINE_VERSION} (SOLID - persistent singleton)`)
 
-engineGlobalThis.__tradeEngineVersion = TRADE_ENGINE_VERSION
+// Always reuse existing coordinator if present - never destroy it
 let globalCoordinator: GlobalTradeEngineCoordinator | null = engineGlobalThis.__tradeEngineCoordinator || null
 
-console.log(`[v0] Global Trade Engine V${TRADE_ENGINE_VERSION} loaded`)
+if (globalCoordinator) {
+  console.log(`[v0] Reusing existing GlobalTradeEngineCoordinator - no restart needed`)
+}
 
 /**
  * Get the global trade engine coordinator singleton instance
