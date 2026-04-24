@@ -23,6 +23,8 @@ const nextConfig = {
         crypto: false,
         stream: false,
         buffer: false,
+        fs: false,
+        path: false,
       }
     }
     return config
