@@ -356,6 +356,13 @@ export class PseudoPositionManager {
   }
 
   /**
+   * Get active pseudo positions for a specific symbol
+   */
+  async getActivePositionsBySymbol(symbol: string): Promise<any[]> {
+    return this.listPositions({ status: "active", symbol })
+  }
+
+  /**
    * Update a pseudo-position with the latest market price.
    *
    * Hot-path optimisations (critical at 100ms tick intervals):
@@ -366,7 +373,7 @@ export class PseudoPositionManager {
    *      redundant `readPosition` HGETALL round-trip. Legacy callers
    *      that don't pass one fall back to the old behaviour.
    *
-   *   2. **Write elision.** Prices do NOT move on every 100ms tick —
+   *   2. **Write elision.** Prices do not move on every 100ms tick —
    *      the market-data feed typically refreshes at sub-second cadence
    *      with many consecutive ticks returning identical prices. We
    *      skip the Redis HSET entirely when the incoming price matches

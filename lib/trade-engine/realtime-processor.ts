@@ -317,7 +317,7 @@ export class RealtimeProcessor {
    * the core safety mechanism) gracefully degrade to defaults when
    * prehistoric is not yet ready.
    */
-  private async processPosition(position: any, prehistoricReady: boolean): Promise<void> {
+  async processPosition(position: any, prehistoricReady: boolean): Promise<void> {
     try {
       // Phase A is the critical path — always kick off the price fetch.
       // Phase B (prev-set) only fires when prehistoric is ready, and
@@ -411,11 +411,9 @@ export class RealtimeProcessor {
 
   /**
    * Get the current price for a symbol via the shared 200ms market-
-   * data cache. The cache handles in-flight dedup and pipelined batch
-   * prefetch, so every realtime tick pays at most ONE Redis RTT per
-   * 200ms window regardless of how many positions share the symbol.
+   * data cache. Public method for external callers (e.g. unified cycle).
    */
-  private async getCurrentPrice(symbol: string): Promise<number | null> {
+  async getCurrentPrice(symbol: string): Promise<number | null> {
     try {
       const data = await getMarketDataCached(symbol)
       if (!data) return null
