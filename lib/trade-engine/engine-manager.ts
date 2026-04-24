@@ -135,7 +135,7 @@ import { DataSyncManager } from "@/lib/data-sync-manager"
 import { IndicationProcessor } from "./indication-processor-fixed"
 import { StrategyProcessor } from "./strategy-processor"
 import { PseudoPositionManager } from "./pseudo-position-manager"
-import { RealtimeProcessor } from "./realtime-processor"
+import { RealtimeProcessor } from "./realtime-process-or"
 import { LiveTradeProcessor } from "./live-trade-processor"
 import { logProgressionEvent } from "@/lib/engine-progression-logs"
 import { loadMarketDataForEngine } from "@/lib/market-data-loader"
@@ -314,7 +314,7 @@ export class TradeEngineManager {
       // leaving strategy/indication stats stuck at zero.
       this.isRunning = true
 
-      // Phase 3-5: Start INDEPENDENT processors (position updates are handled by RealtimeProcessor)
+      // Phase 3-4: Start indication and strategy processors
       await this.updateProgressionPhase("indications", 60, "Processing indications continuously")
       this.startIndicationProcessor(config.indicationInterval)
       // Force an immediate indication cycle
@@ -331,11 +331,25 @@ export class TradeEngineManager {
       const strategyResults = await Promise.all(immediateSymbols.map((symbol) => this.strategyProcessor.processStrategy(symbol).catch(() => ({ strategiesEvaluated: 0, liveReady: 0 }))))
       const totalStrategies = strategyResults.reduce((sum, result) => sum + (result?.strategiesEvaluated || 0), 0)
 
-      // Phase 5: Start REALTIME processor (ALREADY updates positions independently each cycle)
+      // Phase 5: Start realtime processor
+      //
+      // IMPORTANT: The realtime processor is STARTED here (timer loop is
+      // armed immediately so the dashboard reports an active processor),
+      // but individual ticks SELF-GATE on the `prehistoric:{id}:done` flag
+      // written at the end of `loadPrehistoricData`. Until that flag is
+      // set the tick returns early with zero updates so the realtime logic
+      // never runs against an empty previous-position context.
+      //
+      // We deliberately DO NOT run a warm-up pass here: firing
+      // `processRealtimeUpdates()` before prehistoric is finished would
+      // evaluate live positions without any prehistoric-calculated prev-
+      // position context, producing TP/SL decisions on cold state. The
+      // self-gated loop will run the first productive pass the instant
+      // prehistoric completes.
       await this.updateProgressionPhase(
         "realtime",
         85,
-        "Realtime processor: updates open positions each cycle INDEPENDENT of indication/strategy",
+        "Realtime processor armed — waiting for prehistoric calc to finish",
       )
       this.startRealtimeProcessor(config.realtimeInterval)
 
@@ -455,7 +469,6 @@ export class TradeEngineManager {
       clearTimeout(this.realtimeTimer)
       this.realtimeTimer = undefined
     }
-    }
     if (this.liveTradeProcessor) {
       this.liveTradeProcessor.stop()
     }
@@ -498,7 +511,6 @@ export class TradeEngineManager {
       clearTimeout(this.realtimeTimer)
       this.realtimeTimer = undefined
     }
-    }
     if (this.liveTradeProcessor) {
       this.liveTradeProcessor.stop()
     }
@@ -531,7 +543,7 @@ export class TradeEngineManager {
     await this.setRunningFlag(true)
     this.isRunning = true
 
-    // Restart INDEPENDENT processors (realtime ALREADY updates positions each cycle)
+    // Restart all processors
     this.startIndicationProcessor(config.indicationInterval)
     this.startStrategyProcessor(config.strategyInterval)
     this.startRealtimeProcessor(config.realtimeInterval)
@@ -849,14 +861,9 @@ export class TradeEngineManager {
   }
 
   /**
-   * Start UNIFIED per-symbol cycle: Realtime FIRST, then Indication, then Strategy
-   * This ensures open positions are updated BEFORE other processing on each symbol cycle.
+   * Start indication processor (async)
+   * Runs every 1 second with debouncing to prevent overlaps
    */
-    // Start first tick immediately
-    const initTimer = setTimeout(tick, 0)
-    registerEngineTimer(initTimer)
-  }
-
   // Indication processor - runs strategy evaluation on interval
   // Version 3.0 - Removed totalStrategiesEvaluated to fix stale closure issues
   // Version 4.0 - Converted from setInterval to self-scheduling setTimeout so
