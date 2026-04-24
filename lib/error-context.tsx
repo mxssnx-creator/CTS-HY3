@@ -79,3 +79,12 @@ export function ErrorProvider({ children }: { children: ReactNode }) {
     </ErrorContext.Provider>
   )
 }
+
+// Helper functions
+export function getErrorDisplay(error: AppError): string {
+  return error.message || error.code || "Unknown error"
+}
+
+export function getErrorSeverity(error: AppError): "info" | "warning" | "error" | "critical" {
+  return error.severity || "error"
+}
