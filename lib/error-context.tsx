@@ -11,6 +11,17 @@ export interface AppError {
   source?: string
   details?: any
   dismissed?: boolean
+  context?: {
+    component?: string
+    operation?: string
+    [key: string]: any
+  }
+}
+
+export interface ErrorDisplay {
+  bgColor: string
+  icon: string
+  color: string
 }
 
 export interface ErrorContextType {
@@ -20,6 +31,7 @@ export interface ErrorContextType {
   clearErrors: () => void
   hasErrors: boolean
   hasCriticalErrors: boolean
+  criticalErrors?: boolean
 }
 
 const ErrorContext = createContext<ErrorContextType | undefined>(undefined)
@@ -54,6 +66,7 @@ export function ErrorProvider({ children }: { children: ReactNode }) {
 
   const hasErrors = errors.some((err) => !err.dismissed)
   const hasCriticalErrors = errors.some((err) => err.severity === "critical" && !err.dismissed)
+  const criticalErrors = hasCriticalErrors
 
   // Auto-clear old errors after 5 minutes
   useEffect(() => {
@@ -73,6 +86,7 @@ export function ErrorProvider({ children }: { children: ReactNode }) {
         clearErrors,
         hasErrors,
         hasCriticalErrors,
+        criticalErrors,
       }}
     >
       {children}
@@ -81,10 +95,21 @@ export function ErrorProvider({ children }: { children: ReactNode }) {
 }
 
 // Helper functions
-export function getErrorDisplay(error: AppError): string {
-  return error.message || error.code || "Unknown error"
+export function getErrorDisplay(code: string): ErrorDisplay {
+  const displayMap: Record<string, ErrorDisplay> = {
+    "DATABASE_CONNECTION_FAILED": { bgColor: "bg-red-50", icon: "🗄", color: "text-red-600" },
+    "DATABASE_QUERY_FAILED": { bgColor: "bg-red-50", icon: "🗄", color: "text-red-600" },
+    "API_TIMEOUT": { bgColor: "bg-yellow-50", icon: "⏱", color: "text-yellow-600" },
+    "API_RATE_LIMIT": { bgColor: "bg-yellow-50", icon: "⚠", color: "text-yellow-600" },
+    "SERVICE_UNAVAILABLE": { bgColor: "bg-red-50", icon: "❌", color: "text-red-600" },
+    "default": { bgColor: "bg-gray-50", icon: "ℹ", color: "text-gray-600" },
+  }
+  return displayMap[code] || displayMap["default"]
 }
 
-export function getErrorSeverity(error: AppError): "info" | "warning" | "error" | "critical" {
-  return error.severity || "error"
+export function getErrorSeverity(code: string): "info" | "warning" | "error" | "critical" {
+  if (code.includes("FAILED") || code.includes("ERROR")) return "error"
+  if (code.includes("WARNING") || code.includes("TIMEOUT")) return "warning"
+  if (code.includes("CRITICAL")) return "critical"
+  return "info"
 }

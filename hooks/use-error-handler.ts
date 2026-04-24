@@ -2,21 +2,27 @@
 
 import { useCallback } from "react"
 import { useErrorContext } from "@/lib/error-context"
-import { ErrorCode } from "@/lib/error-handling"
 import { ErrorHandler } from "@/lib/error-handling"
+import type { ErrorCode } from "@/lib/error-handling"
 
 export function useErrorHandler(component: string) {
   const { addError } = useErrorContext()
 
   const reportError = useCallback(
     (error: any, operation?: string, additionalContext?: Record<string, any>) => {
-      const code = ErrorHandler.classifyError(error)
+      const code = ErrorHandler.classifyError(error) as ErrorCode
       const message = error instanceof Error ? error.message : String(error)
 
-      addError(code, message, {
-        component,
-        operation,
-        ...additionalContext,
+      addError({
+        code,
+        message,
+        severity: "error",
+        source: component,
+        context: {
+          component,
+          operation,
+          ...additionalContext,
+        },
       })
 
       // Also log to console for development
@@ -34,7 +40,7 @@ export function useErrorHandler(component: string) {
 
   const reportApiError = useCallback(
     (error: any, endpoint?: string) => {
-      reportError(error, endpoint || "api", { type: "api" })
+      reportError(error, endpoint || "api_call", { type: "api" })
     },
     [reportError]
   )
@@ -46,18 +52,10 @@ export function useErrorHandler(component: string) {
     [reportError]
   )
 
-  const reportRateLimitError = useCallback(
-    (error: any, details?: string) => {
-      reportError(error, "rate-limit", { type: "rate-limit", details })
-    },
-    [reportError]
-  )
-
   return {
     reportError,
     reportDatabaseError,
     reportApiError,
     reportServiceError,
-    reportRateLimitError,
   }
 }
