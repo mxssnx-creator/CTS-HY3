@@ -1,7 +1,7 @@
 # Context File - Current State
- 
+  
 ## Current State (2026-04-24)
-
+ 
 ### Recently Completed ✓
 - [x] Updated docker-compose.yml with proper service coordination and health checks
 - [x] Created deploy.sh script for overall deployment coordination (startup, init, coordination)
@@ -34,6 +34,16 @@
   - Fix 2: Changed to preserve existing "0" values, removed from loadConnections() filter
   - Added helper functions: isBaseConnection, markBaseConnectionDeleted, unmarkBaseConnectionDeleted
   - Export BASE_CONNECTION_CONFIG for use in delete API
+- [x] Comprehensive stability fixes for GlobalTradeEngineCoordinator (2026-04-24)
+  - Fixed uncaught exception handler in error-handling-production.ts that was crashing coordinator
+  - Removed process.exit() from uncaught exception handler (SOLID mode: coordinator must not stop)
+  - Enabled startGlobalHealthMonitoring() in coordinator constructor for periodic health checks
+  - Added Bybit-x03 and BingX-x01 auto-assignment as main connections on startup
+  - Fixed trading/stats/route.ts to use Redis instead of legacy DB, return safe defaults
+  - Fixed Redis persistence (saveToDisk/saveToDiskSync) with better error logging and directory checks
+  - Fixed TypeScript errors in error-section.tsx (severity sorting, timestamp comparison)
+  - Ensured health checks and engine refresh run continuously via startGlobalHealthMonitoring
+
 
 ### Current Focus
 - Main Connection stability issues resolved (delete reappearance, enable readd fixed)

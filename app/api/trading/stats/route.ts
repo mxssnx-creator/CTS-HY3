@@ -1,90 +1,93 @@
 import { NextResponse } from "next/server"
-import { loadConnections } from "@/lib/file-storage"
+import { getRedisClient } from "@/lib/redis-db"
 import { SystemLogger } from "@/lib/system-logger"
-import { query } from "@/lib/db"
 
 export async function GET() {
   try {
-    console.log("[v0] Fetching detailed trading statistics")
+    console.log("[v0] Fetching detailed trading statistics (Redis-based)")
     
-    const connections = loadConnections()
-    const enabledConnections = connections.filter((c) => c.is_enabled && c.is_live_trade)
+    const redis = getRedisClient()
     
-    // Return comprehensive stats with last250, last50, and last32h
+    // Safe default response
+    const defaultStats = {
+      last250: { total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0, totalProfit: 0 },
+      last50: { total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0, totalProfit: 0 },
+      last32h: { total: 0, totalProfit: 0, profitFactor: 0 },
+    }
+    
     try {
-      // Get last 250 positions
-      const last250 = await query(
-        `SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as wins,
-          SUM(CASE WHEN pnl < 0 THEN 1 ELSE 0 END) as losses,
-          COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) / COUNT(*), 0) as winRate,
-          COALESCE(SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END) / NULLIF(SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END), 0), 0) as profitFactor,
-          COALESCE(SUM(pnl), 0) as totalProfit
-         FROM pseudo_positions ORDER BY created_at DESC LIMIT 250`
-      )
+      // Get all positions from Redis
+      const posIds = await redis.smembers("positions:all").catch(() => []) || []
+      const positions: any[] = []
       
-      // Get last 50 positions
-      const last50 = await query(
-        `SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as wins,
-          SUM(CASE WHEN pnl < 0 THEN 1 ELSE 0 END) as losses,
-          COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) / COUNT(*), 0) as winRate,
-          COALESCE(SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END) / NULLIF(SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END), 0), 0) as profitFactor,
-          COALESCE(SUM(pnl), 0) as totalProfit
-         FROM pseudo_positions ORDER BY created_at DESC LIMIT 50`
-      )
+      for (const posId of posIds.slice(0, 250)) {
+        try {
+          const pos = await redis.hgetall(`position:${posId}`)
+          if (pos && Object.keys(pos).length > 0) {
+            positions.push(pos)
+          }
+        } catch { /* skip */ }
+      }
       
-      // Get last 32 hours
-      const last32h = await query(
-        `SELECT 
-          COUNT(*) as total,
-          COALESCE(SUM(pnl), 0) as totalProfit,
-          COALESCE(SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END) / NULLIF(SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END), 0), 0) as profitFactor
-         FROM pseudo_positions WHERE created_at >= datetime('now', '-32 hours')`
-      )
+      // Calculate stats for last 250
+      const last250Positions = positions.slice(0, 250)
+      const last250Total = last250Positions.length
+      const last250Wins = last250Positions.filter(p => parseFloat(p.pnl || "0") > 0).length
+      const last250Losses = last250Positions.filter(p => parseFloat(p.pnl || "0") < 0).length
+      const last250WinRate = last250Total > 0 ? last250Wins / last250Total : 0
+      const last250Profit = last250Positions.reduce((sum, p) => sum + parseFloat(p.pnl || "0"), 0)
       
-      const l250 = (last250 as any[])[0]
-      const l50 = (last50 as any[])[0]
-      const l32 = (last32h as any[])[0]
+      // Calculate stats for last 50
+      const last50Positions = positions.slice(0, 50)
+      const last50Total = last50Positions.length
+      const last50Wins = last50Positions.filter(p => parseFloat(p.pnl || "0") > 0).length
+      const last50Losses = last50Positions.filter(p => parseFloat(p.pnl || "0") < 0).length
+      const last50WinRate = last50Total > 0 ? last50Wins / last50Total : 0
+      const last50Profit = last50Positions.reduce((sum, p) => sum + parseFloat(p.pnl || "0"), 0)
       
-      console.log(`[v0] Trading stats - Last250: ${l250?.total || 0}, Last50: ${l50?.total || 0}, Last32h: ${l32?.total || 0}`)
+      // Calculate last 32h (need to check created_at within 32h)
+      const thirtyTwoHoursAgo = Date.now() - (32 * 60 * 60 * 1000)
+      const last32hPositions = positions.filter(p => {
+        const created = new Date(p.created_at || 0).getTime()
+        return created >= thirtyTwoHoursAgo
+      })
+      const last32hTotal = last32hPositions.length
+      const last32hProfit = last32hPositions.reduce((sum, p) => sum + parseFloat(p.pnl || "0"), 0)
       
       return NextResponse.json({
         last250: {
-          total: l250?.total || 0,
-          wins: l250?.wins || 0,
-          losses: l250?.losses || 0,
-          winRate: l250?.winRate || 0,
-          profitFactor: l250?.profitFactor || 0,
-          totalProfit: l250?.totalProfit || 0,
+          total: last250Total,
+          wins: last250Wins,
+          losses: last250Losses,
+          winRate: last250WinRate,
+          profitFactor: last250Wins > 0 ? last250Profit / Math.abs(last250Profit - last250Profit) : 0,
+          totalProfit: last250Profit,
         },
         last50: {
-          total: l50?.total || 0,
-          wins: l50?.wins || 0,
-          losses: l50?.losses || 0,
-          winRate: l50?.winRate || 0,
-          profitFactor: l50?.profitFactor || 0,
-          totalProfit: l50?.totalProfit || 0,
+          total: last50Total,
+          wins: last50Wins,
+          losses: last50Losses,
+          winRate: last50WinRate,
+          profitFactor: last50Wins > 0 ? last50Profit / Math.abs(last50Profit - last50Profit) : 0,
+          totalProfit: last50Profit,
         },
         last32h: {
-          total: l32?.total || 0,
-          totalProfit: l32?.totalProfit || 0,
-          profitFactor: l32?.profitFactor || 0,
+          total: last32hTotal,
+          totalProfit: last32hProfit,
+          profitFactor: last32hTotal > 0 ? last32hProfit / last32hTotal : 0,
         },
       })
     } catch (dbError) {
-      console.warn("[v0] Database stats not available:", dbError)
-      return NextResponse.json({
-        last250: { total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0, totalProfit: 0 },
-        last50: { total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0, totalProfit: 0 },
-        last32h: { total: 0, totalProfit: 0, profitFactor: 0 },
-      })
+      console.warn("[v0] Redis stats not available:", dbError)
+      return NextResponse.json(defaultStats)
     }
   } catch (error) {
     console.error("[v0] Failed to fetch stats:", error)
-    await SystemLogger.logError(error, "api", "GET /api/trading/stats")
-    return NextResponse.json({ error: "Failed to fetch stats" }, { status: 500 })
+    await SystemLogger.logError(error, "api", "GET /api/trading/stats").catch(() => {})
+    return NextResponse.json({
+      last250: { total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0, totalProfit: 0 },
+      last50: { total: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0, totalProfit: 0 },
+      last32h: { total: 0, totalProfit: 0, profitFactor: 0 },
+    })
   }
 }

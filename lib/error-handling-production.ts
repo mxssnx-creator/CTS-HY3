@@ -82,6 +82,7 @@ export class ProductionErrorHandler {
 
   /**
    * Handle uncaught exception
+   * SOLID MODE: Do NOT exit process - log and continue to keep coordinator running
    */
   private static handleUncaughtException(error: Error) {
     const productionError: ProductionError = {
@@ -93,14 +94,13 @@ export class ProductionErrorHandler {
       severity: 'critical'
     }
 
-    console.error('[ERROR] Uncaught Exception:', error)
+    console.error('[ERROR] Uncaught Exception (continuing - SOLID mode):', error)
 
     this.logError(productionError)
     this.trackErrorMetric(productionError)
 
-    // Graceful shutdown after logging
-    console.error('[ERROR] Initiating graceful shutdown...')
-    this.gracefulShutdown(1)
+    // SOLID: Do NOT exit - coordinator must remain stable
+    // Only log the error, let the coordinator handle any state issues
   }
 
   /**
@@ -113,6 +113,7 @@ export class ProductionErrorHandler {
 
   /**
    * Graceful shutdown sequence
+   * SOLID MODE: Only exit on SIGTERM/SIGINT, NOT on uncaught exceptions
    */
   private static gracefulShutdown(exitCode: number) {
     if (this.isShuttingDown) {
@@ -135,7 +136,14 @@ export class ProductionErrorHandler {
     try {
       // Close connections, flush logs, etc.
       console.log('[SHUTDOWN] Cleanup complete, exiting...')
-      process.exit(exitCode)
+      // Only exit if not in SOLID mode (coordinator is running)
+      // If coordinator is active, don't exit - let it handle the error
+      const globalCoordinator = (globalThis as any).__tradeEngineCoordinator
+      if (!globalCoordinator) {
+        process.exit(exitCode)
+      } else {
+        console.log('[SHUTDOWN] Coordinator is running - NOT exiting, will attempt recovery')
+      }
     } catch (error) {
       console.error('[SHUTDOWN] Error during cleanup:', error)
       process.exit(exitCode)

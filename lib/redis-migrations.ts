@@ -815,7 +815,7 @@ async function getDeletedBaseConnections(client: any): Promise<Set<string>> {
   return new Set(deleted)
 }
 
-async function ensureBaseConnections(client: any): Promise<{ createdOrUpdated: number; credentialsInjected: number }> {
+export async function ensureBaseConnections(client: any): Promise<{ createdOrUpdated: number; credentialsInjected: number }> {
   let createdOrUpdated = 0
   let credentialsInjected = 0
 

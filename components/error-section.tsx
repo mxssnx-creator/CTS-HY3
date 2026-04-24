@@ -22,11 +22,20 @@ export function ErrorSection() {
   }
 
   const sortedErrors = [...undismissedErrors].sort((a: AppError, b: AppError) => {
-    const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
-    const aSev = severityOrder[getErrorSeverity(a.code)]
-    const bSev = severityOrder[getErrorSeverity(b.code)]
+    // Map severity to numeric order (critical=0, error=1, warning=2, info=3)
+    const getSeverityOrder = (sev: string): number => {
+      if (sev === "critical") return 0
+      if (sev === "error") return 1
+      if (sev === "warning") return 2
+      return 3 // info or default
+    }
+    const aSev = getSeverityOrder(getErrorSeverity(a.code))
+    const bSev = getSeverityOrder(getErrorSeverity(b.code))
     if (aSev !== bSev) return aSev - bSev
-    return b.timestamp - a.timestamp
+    // Compare timestamps as numbers
+    const aTime = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime()
+    const bTime = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime()
+    return bTime - aTime
   })
 
   const criticalCount = undismissedErrors.filter(
@@ -106,7 +115,7 @@ export function ErrorSection() {
                         className={`text-xs ${
                           severity === "critical"
                             ? "bg-red-100 text-red-700"
-                            : severity === "high"
+                            : severity === "error"
                               ? "bg-orange-100 text-orange-700"
                               : "bg-blue-100 text-blue-700"
                         }`}

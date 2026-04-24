@@ -78,6 +78,8 @@ export class GlobalTradeEngineCoordinator {
     this.setupGlobalErrorHandling()
     this.startStabilityMonitoring()
     this.startCrashRecoveryWatchdog()
+    this.startGlobalHealthMonitoring()
+    console.log("[v0] [Coordinator] All monitoring systems initialized (SOLID mode)")
   }
 
   /**
@@ -498,26 +500,71 @@ export class GlobalTradeEngineCoordinator {
 
   /**
    * Start all engines for enabled connections (modern Redis-based)
+   * ON STARTUP: Assign Bybit and BingX as main connections automatically
    */
   async startAll(): Promise<void> {
     try {
       console.log("[v0] [Coordinator] Starting global trade engine...")
-      
+
       // Import Redis functions
-      const { initRedis, getAssignedAndEnabledConnections, getAllConnections } = await import("@/lib/redis-db")
+      const { initRedis, getAssignedAndEnabledConnections, getAllConnections, getClient } = await import("@/lib/redis-db")
       const { loadSettingsAsync } = await import("@/lib/settings-storage")
-      
+
       // Initialize Redis and get connections
       await initRedis()
       const allConnections = await getAllConnections()
-      
+
+      // ── STEP 0: Ensure Bybit and BingX are assigned as main connections ──
+      // User requirement: "assign Main Connections bybit and bingx ON Startup"
+      const mainConnectionIds = ["bybit-x03", "bingx-x01"]
+      const client = getClient()
+
+      for (const connId of mainConnectionIds) {
+        try {
+          const existingConn = allConnections.find(c => c.id === connId)
+          if (existingConn) {
+            // Connection exists: ensure it's assigned to main (is_active_inserted=1)
+            if (existingConn.is_active_inserted !== "1") {
+              console.log(`[v0] [Coordinator] Assigning ${connId} to main connections (startup)`)
+              await client.hset(`connection:${connId}`, {
+                is_active_inserted: "1",
+                is_enabled_dashboard: "1",
+                is_active: "1",
+                updated_at: new Date().toISOString(),
+              })
+              // Also unmark from deleted set if present
+              const { unmarkBaseConnectionDeleted } = await import("@/lib/redis-migrations")
+              await unmarkBaseConnectionDeleted(client, connId)
+              console.log(`[v0] [Coordinator] ✓ ${connId} assigned to main, unmarked from deleted`)
+            } else {
+              console.log(`[v0] [Coordinator] ${connId} already assigned to main`)
+            }
+          } else {
+            // Connection doesn't exist: create it as base connection (won't trigger migrations)
+            console.log(`[v0] [Coordinator] Creating missing main connection: ${connId}`)
+            const { ensureBaseConnections } = await import("@/lib/redis-migrations")
+            await ensureBaseConnections(client)
+            // Then assign it
+            await client.hset(`connection:${connId}`, {
+              is_active_inserted: "1",
+              is_enabled_dashboard: "1",
+              is_active: "1",
+              updated_at: new Date().toISOString(),
+            })
+            console.log(`[v0] [Coordinator] ✓ Created and assigned ${connId} to main`)
+          }
+        } catch (err) {
+          console.error(`[v0] [Coordinator] Error ensuring main connection ${connId}:`, err)
+        }
+      }
+
       // NOTE: Removed auto-enable logic
       // Connections must be explicitly:
       // 1. Created in base connections
       // 2. Assigned to main connections via add-to-active flow
       // 3. Enabled via dashboard toggle
       // This ensures user control over which connections are processed
-      
+
       // Get assigned + enabled connections (user must explicitly assign to main)
       const connections = await getAssignedAndEnabledConnections()
       

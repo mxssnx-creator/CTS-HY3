@@ -159,12 +159,16 @@ export class InlineLocalRedis {
   }
 
   async saveToDisk(): Promise<boolean> {
-    if (!PERSISTENCE_ENABLED) return false
+    if (!PERSISTENCE_ENABLED) {
+      console.log("[v0] [Redis] Persistence disabled, skipping snapshot")
+      return false
+    }
     try {
       const { promises: fs } = await import('fs')
       const path = await import('path')
       const dir = path.dirname(PERSISTENCE_FILE)
       
+      // Ensure directory exists
       await fs.mkdir(dir, { recursive: true })
       
       const snapshot = {
@@ -182,21 +186,29 @@ export class InlineLocalRedis {
       }
       
       await fs.writeFile(PERSISTENCE_FILE, JSON.stringify(snapshot, null, 2))
+      console.log(`[v0] [Redis] Snapshot saved to ${PERSISTENCE_FILE}`)
       return true
     } catch (error) {
       console.error('[v0] [Redis] Failed to save snapshot:', error)
+      console.error('[v0] [Redis] PERSISTENCE_FILE:', PERSISTENCE_FILE)
       return false
     }
   }
 
   saveToDiskSync(): boolean {
-    if (!PERSISTENCE_ENABLED) return false
+    if (!PERSISTENCE_ENABLED) {
+      console.log("[v0] [Redis] Persistence disabled, skipping snapshot sync")
+      return false
+    }
     try {
       const fs = require('fs')
       const path = require('path')
       const dir = path.dirname(PERSISTENCE_FILE)
       
-      fs.mkdirSync(dir, { recursive: true })
+      // Ensure directory exists
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
       
       const snapshot = {
         version: REDIS_DB_VERSION,
@@ -213,9 +225,11 @@ export class InlineLocalRedis {
       }
       
       fs.writeFileSync(PERSISTENCE_FILE, JSON.stringify(snapshot, null, 2))
+      console.log(`[v0] [Redis] Snapshot saved (sync) to ${PERSISTENCE_FILE}`)
       return true
     } catch (error) {
       console.error('[v0] [Redis] Failed to save snapshot sync:', error)
+      console.error('[v0] [Redis] PERSISTENCE_FILE:', PERSISTENCE_FILE)
       return false
     }
   }
