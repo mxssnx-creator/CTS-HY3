@@ -207,7 +207,7 @@ export function AddActiveConnectionDialog({
                       <p className="font-medium">To add a connection:</p>
                       <ol className="list-decimal list-inside space-y-0.5 ml-1">
                         <li>Go to Settings → Overall → Connections</li>
-                        <li>Click "Add Connection"</li>
+                        <li>Click &quot;Add Connection&quot;</li>
                         <li>Enter your real API credentials</li>
                         <li>Save and test the connection</li>
                         <li>Return here to add it to Active List</li>

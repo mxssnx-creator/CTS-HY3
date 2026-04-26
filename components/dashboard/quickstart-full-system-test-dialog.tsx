@@ -398,7 +398,7 @@ export function QuickstartFullSystemTestDialog() {
                   <div className="text-slate-400">Initializing test...</div>
                 )}
                 {!isRunning && logs.length === 0 && (
-                  <div className="text-slate-400">Click \"Run Full System Test\" to begin monitoring</div>
+                  <div className="text-slate-400">Click &quot;Run Full System Test&quot; to begin monitoring</div>
                 )}
               </div>
             </Card>

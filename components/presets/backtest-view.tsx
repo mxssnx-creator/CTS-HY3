@@ -295,7 +295,7 @@ export function BacktestView({ preset }: BacktestViewProps) {
           <CardContent className="p-12 text-center">
             <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-lg font-semibold mb-2">No backtest results yet</h3>
-            <p className="text-muted-foreground">Run a backtest to evaluate this preset's performance</p>
+            <p className="text-muted-foreground">Run a backtest to evaluate this preset&apos;s performance</p>
           </CardContent>
         </Card>
       )}

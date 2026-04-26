@@ -1,9 +1,13 @@
+import { FlatCompat } from "@eslint/eslintrc";
 import tsParser from "@typescript-eslint/parser";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 import nextPlugin from "@next/eslint-plugin-next";
 import reactHooksPlugin from "eslint-plugin-react-hooks";
 
+const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
+
 const eslintConfig = [
+  ...compat.extends("next/core-web-vitals"),
   {
     ignores: [
       "node_modules/**",
@@ -30,7 +34,14 @@ const eslintConfig = [
       "@next/next": nextPlugin,
       "react-hooks": reactHooksPlugin,
     },
+    settings: {
+      next: {
+        rootDir: ["."],
+      },
+    },
     rules: {
+      ...nextPlugin.configs.recommended.rules,
+      ...nextPlugin.configs["core-web-vitals"].rules,
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "warn",

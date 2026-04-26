@@ -493,7 +493,7 @@ export function AddConnectionDialog({ open, onOpenChange, onConnectionAdded, onS
                   </Select>
                   {(formData.exchange === "bingx" || formData.exchange === "pionex" || formData.exchange === "orangex") && formData.api_type === "spot" && (
                     <p className="text-xs text-amber-600 mt-1">
-                      ⚠️ Warning: Spot API will show 0 balance if you have Perpetual Futures positions. Use "perpetual_futures" for futures trading.
+                      ⚠️ Warning: Spot API will show 0 balance if you have Perpetual Futures positions. Use &quot;perpetual_futures&quot; for futures trading.
                     </p>
                   )}
                 </div>
@@ -786,7 +786,7 @@ export function AddConnectionDialog({ open, onOpenChange, onConnectionAdded, onS
                       <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                       <div>
                         <p className="font-medium">Please fill in API credentials first</p>
-                        <p className="text-amber-800">Switch to the "API Credentials" tab to enter your API Key and Secret</p>
+                        <p className="text-amber-800">Switch to the &quot;API Credentials&quot; tab to enter your API Key and Secret</p>
                       </div>
                     </div>
                   )}

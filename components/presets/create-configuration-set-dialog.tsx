@@ -592,7 +592,7 @@ export function CreateConfigurationSetDialog({
                     <div className="space-y-1">
                       <p className="text-sm font-medium">Automatic Re-evaluation</p>
                       <p className="text-xs text-muted-foreground">
-                        Sets are automatically re-evaluated every hour. Configurations that don't meet profit thresholds
+                        Sets are automatically re-evaluated every hour. Configurations that don&apos;t meet profit thresholds
                         for the last X positions are disabled automatically.
                       </p>
                     </div>

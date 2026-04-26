@@ -15,6 +15,7 @@ const REDIS_DB_VERSION = "3.1.0"
 const PERSISTENCE_FILE = process.env.REDIS_SNAPSHOT_PATH || "./data/redis-snapshot.json"
 const PERSISTENCE_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 const PERSISTENCE_ENABLED = process.env.REDIS_PERSISTENCE !== "false"
+const IS_NEXT_BUILD = process.env.NEXT_PHASE === "phase-production-build"
 void REDIS_DB_VERSION
 
 interface RedisData {
@@ -137,7 +138,7 @@ export class InlineLocalRedis {
   }
 
   async startPersistence(): Promise<boolean> {
-    if (!PERSISTENCE_ENABLED) return false
+    if (!PERSISTENCE_ENABLED || IS_NEXT_BUILD) return false
     
     await this.saveToDisk()
     
@@ -159,6 +160,8 @@ export class InlineLocalRedis {
   }
 
   async saveToDisk(): Promise<boolean> {
+    if (IS_NEXT_BUILD) return false
+
     if (!PERSISTENCE_ENABLED) {
       console.log("[v0] [Redis] Persistence disabled, skipping snapshot")
       return false
@@ -196,6 +199,8 @@ export class InlineLocalRedis {
   }
 
   saveToDiskSync(): boolean {
+    if (IS_NEXT_BUILD) return false
+
     if (!PERSISTENCE_ENABLED) {
       console.log("[v0] [Redis] Persistence disabled, skipping snapshot sync")
       return false

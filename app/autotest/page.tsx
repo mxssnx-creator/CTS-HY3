@@ -23,7 +23,7 @@ export default function TestPage() {
             <div className='bg-white dark:bg-slate-900 rounded-lg p-4 border'>
               <h3 className='font-bold mb-2'>Quick Start</h3>
               <ol className='text-sm space-y-2 text-muted-foreground'>
-                <li>1. Click "Start Test" to begin the progression test</li>
+                <li>1. Click &quot;Start Test&quot; to begin the progression test</li>
                 <li>2. Monitor real-time metrics for each phase</li>
                 <li>3. Enable debug mode to see detailed logs</li>
                 <li>4. Test completes after 60 seconds automatically</li>

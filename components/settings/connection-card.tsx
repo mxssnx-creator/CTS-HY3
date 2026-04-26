@@ -537,7 +537,7 @@ export function ConnectionCard({
                   </Select>
                   {(connection.exchange === "bingx" || connection.exchange === "pionex" || connection.exchange === "orangex") && editFormData.api_type === "spot" && (
                     <p className="text-xs text-amber-600 mt-1">
-                      ⚠️ Warning: Spot API will show 0 balance if you have Perpetual Futures positions. Use "perpetual_futures" for futures trading.
+                      ⚠️ Warning: Spot API will show 0 balance if you have Perpetual Futures positions. Use &quot;perpetual_futures&quot; for futures trading.
                     </p>
                   )}
                 </div>
