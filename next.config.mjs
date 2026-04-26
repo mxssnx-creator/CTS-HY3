@@ -8,8 +8,17 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ["*"],
     },
+    turbo: {
+      resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
+    },
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
+    if (dev && !isServer) {
+      config.cache = {
+        type: 'memory',
+        maxGenerations: 5,
+      }
+    }
     if (!isServer) {
       config.resolve = config.resolve || {}
       config.resolve.fallback = {
@@ -22,6 +31,11 @@ const nextConfig = {
       }
     }
     return config
+  },
+  // Optimize for development performance
+  onDemandEntries: {
+    maxInactiveAge: 60 * 60 * 1000,
+    pagesBufferLength: 5,
   },
 }
 

@@ -64,6 +64,9 @@
 - Error handling system implementation complete
 
 ### Session History
+- 2026-04-26: Optimized dev site performance:
+  - next.config.mjs: Added TurboPack config, webpack memory cache, onDemandEntries settings
+  - package.json: Increased Node memory to 8GB, enabled --turbopack flag for dev scripts
 - 2026-04-24: Fixed Main Connection stability issues:
   - lib/redis-migrations.ts: Added deleted base connection tracking (Redis set)
   - lib/redis-migrations.ts: Fixed is_dashboard_inserted to preserve "0" values
@@ -119,7 +122,12 @@
 - [x] Added getActivePositionsBySymbol() for per-symbol updates
 - [x] Made processPosition() and getCurrentPrice() public in realtime-processor.ts
 - [x] Ensured optimal, correct, valid workflows and relations
-- [x] No conflicts in logistics and processings
 - [x] Overall high performance and optimizations
 - [x] Complete UI functionalities and correctness
 - [x] No doubled progresses, processings, coordinations systemwide
+- [x] Optimized dev site performance (2026-04-26)
+  - Enabled TurboPack in dev script (--turbopack flag)
+  - Increased Node.js memory to 8GB (NODE_OPTIONS='--max-old-space-size=8192')
+  - Added webpack memory cache with maxGenerations for development
+  - Added onDemandEntries configuration for better memory management
+  - Added Turbo configuration in next.config.mjs for faster builds
