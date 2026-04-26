@@ -88,7 +88,7 @@ log('cyan', 'DEBUG', `Debug modules: ${debugModules.length} active`);
 log('yellow', 'DEBUG', 'Watch for [v0] prefixed debug logs');
 log('bright', 'DEBUG', '');
 
-const dev = spawn('next', ['dev', '-p', '3002'], {
+const dev = spawn('next', ['dev', '-p', '3002', '--turbopack'], {
   env,
   stdio: 'inherit',
   cwd: path.dirname(__dirname),
