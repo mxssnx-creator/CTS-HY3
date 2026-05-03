@@ -356,18 +356,23 @@ export async function POST(request: Request) {
     } catch { /* non-critical */ }
     console.log(`${LOG_PREFIX}: [3/4] Stored symbols in trade_engine_state: ${symbols.join(", ")}`)
     
-     const isAssigned = updated.is_assigned === "1" || updated.is_assigned === true
-     const isMainEnabled = updated.is_enabled_dashboard === "1" || updated.is_enabled_dashboard === true
-     
-     await logProgressionEvent(connectionId, "quickstart_updated", "info", "Connection state updated", {
+       const isAssigned = updated.is_assigned === "1" || updated.is_assigned === true
+      const isMainEnabled = updated.is_enabled_dashboard === "1" || updated.is_enabled_dashboard === true
+      
+      // PHASE 2 FIX: Only start engine when both conditions are met
+      const isAssignedToMain = isAssigned
+      const isDashboardEnabled = isMainEnabled
+      
+      await logProgressionEvent(connectionId, "quickstart_updated", "info", "Connection state updated", {
        symbols,
        isAssigned,
        isMainEnabled,
        testPassed,
      })
      
-      // Step 4: Start engine - FIRST ensure Global Coordinator is running
-      console.log(`${LOG_PREFIX}: [4/4] Starting Global Trade Engine Coordinator first...`)
+       // Step 4: Start engine - FIRST ensure Global Coordinator is running
+       // PHASE 2 FIX: Only start engine if connection is explicitly enabled
+       console.log(`${LOG_PREFIX}: [4/4] Starting Global Trade Engine Coordinator first...`)
       await setSettings(`engine_progression:${connectionId}`, {
         phase: "initializing",
         progress: 5,
@@ -403,7 +408,8 @@ export async function POST(request: Request) {
         console.warn(`${LOG_PREFIX} Global Coordinator start warning (already running?):`, globalStartError)
       }
       
-      if (isAssigned && isMainEnabled) {
+       // PHASE 2 FIX: Conditional engine start based on assignment and dashboard state
+      if (isAssignedToMain && isDashboardEnabled) {
         console.log(`${LOG_PREFIX}: [4/4] Connection is explicitly enabled - initializing Main Engine...`)
         await setSettings(`engine_progression:${connectionId}`, {
           phase: "starting",

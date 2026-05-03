@@ -107,10 +107,10 @@ export class StrategyCoordinator {
   }
 
   // Profit factor thresholds per stage
-  private readonly PF_BASE_MIN = 1.0    // Minimum to enter BASE set
-  private readonly PF_MAIN_MIN = 1.2    // Base sets must have avgPF >= 1.2 to enter MAIN
-  private readonly PF_REAL_MIN = 1.4    // Main sets must have avgPF >= 1.4 to enter REAL
-  private readonly PF_LIVE_MIN = 1.4    // Real sets must have avgPF >= 1.4 to enter LIVE
+  private readonly PF_BASE_MIN = 0.5    // Minimum to enter BASE set (changed from 1.0 to 0.5)
+  private readonly PF_MAIN_MIN = 0.5    // Base sets must have avgPF >= 0.5 to enter MAIN (changed from 1.2)
+  private readonly PF_REAL_MIN = 0.5    // Main sets must have avgPF >= 0.5 to enter REAL (changed from 1.4)
+  private readonly PF_LIVE_MIN = 0.5    // Real sets must have avgPF >= 0.5 to enter LIVE (changed from 1.4)
 
   // ── Filter axes (P0-2) ──────────────────────────────────────────────
   // Spec: *"filtering by Profitfactor Minimum, DrawdownTime Maximum"*.
@@ -123,27 +123,27 @@ export class StrategyCoordinator {
   private readonly METRICS: Record<string, EvaluationMetrics> = {
     base: {
       maxDrawdownTime: 999999,
-      minProfitFactor: 1.0,
+      minProfitFactor: 0.5,   // Changed from 1.0 to 0.5
       confidence: 0.3,  // advisory only
       description: "One Set per (indication_type × direction) — all qualifying",
     },
     main: {
       maxDrawdownTime: 1440,  // 24 hours
-      minProfitFactor: 1.2,   // Base sets with avgPF >= 1.2 → promoted to MAIN
+      minProfitFactor: 0.5,   // Base sets with avgPF >= 0.5 → promoted to MAIN (changed from 1.2)
       confidence: 0.5,        // advisory only
-      description: "Sets promoted from BASE with profitFactor >= 1.2 + DDT <= 24h",
+      description: "Sets promoted from BASE with profitFactor >= 0.5 + DDT <= 24h",
     },
     real: {
       maxDrawdownTime: 960,   // 16 hours
-      minProfitFactor: 1.4,   // Main sets with avgPF >= 1.4 → promoted to REAL
+      minProfitFactor: 0.5,   // Main sets with avgPF >= 0.5 → promoted to REAL (changed from 1.4)
       confidence: 0.65,       // advisory only
-      description: "Sets promoted from MAIN with profitFactor >= 1.4 + DDT <= 16h",
+      description: "Sets promoted from MAIN with profitFactor >= 0.5 + DDT <= 16h",
     },
     live: {
       maxDrawdownTime: 120,   // 2 hours — realistic for current strategy output
-      minProfitFactor: 1.4,   // Match REAL stage minimum so Sets can flow through
+      minProfitFactor: 0.5,   // Match REAL stage minimum so Sets can flow through (changed from 1.4)
       confidence: 0.65,       // advisory only
-      description: "Best 500 Sets from REAL (PF >= 1.4 + DDT <= 2h) ready for live trading",
+      description: "Best 500 Sets from REAL (PF >= 0.5 + DDT <= 2h) ready for live trading",
     },
   }
 

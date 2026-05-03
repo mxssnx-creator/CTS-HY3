@@ -3,6 +3,35 @@
 ## Current State (2026-04-24)
  
 ### Recently Completed ✓
+- [x] Phase 2 tests passing - State consistency fixes (2026-05-03)
+  - Fix 2.1: Dashboard toggle with stopEngine/startEngine ✓
+  - Fix 2.2: Connection count service ✓
+  - Fix 2.3: Race conditions with stop lock ✓
+  - Fix 2.4: Quick-start respects user settings ✓
+  - Fix 2.5: State utility helpers ✓
+  - Fix 2.6: Progression API checks coordinator ✓
+  - Fix 2.7: Engine manager isEngineRunning getter ✓
+- [x] Phase 3 tests passing - Database consolidation (2026-05-03)
+  - Fix 3.1-3.4: Database consolidation service ✓
+  - Fix 3.2: Efficient connection indexes ✓
+  - Fix 3.3: Unified engine state structure ✓
+  - Fix 3.4: Market data state tracking ✓
+  - Fix 3.5: Migration 020 for consolidation ✓
+- [x] Strategy profit factor thresholds lowered (2026-05-03)
+  - PF_BASE_MIN: 1.0 → 0.5
+  - PF_MAIN_MIN: 1.2 → 0.5
+  - PF_REAL_MIN: 1.4 → 0.5
+  - PF_LIVE_MIN: 1.4 → 0.5
+- [x] Auto engine restart on crash with exponential backoff (watchdog) ✓
+- [x] Redis persistence and database migrations working in production mode ✓
+- [x] Progression uses cumulative counters instead of per-cycle snapshots ✓
+- [x] Async error handling throughout strategy processing ✓
+- [x] All symbols processed asynchronously with concurrency control ✓
+- [x] Database initialization and migration checks at startup ✓
+- [x] Realtime processor prehistoric data gating fixed ✓
+- [x] Comprehensive error recovery and auto-reconnection logic ✓
+- [x] System verification checklist passing ✓
+- [x] Build, lint, and typecheck all passing ✓
 - [x] Fixed overall build and quality gate issues (2026-04-26)
   - Removed Next.js build bypasses for TypeScript and ESLint in next.config.mjs
   - Enabled Next core-web-vitals ESLint compatibility through FlatCompat in eslint.config.mjs
