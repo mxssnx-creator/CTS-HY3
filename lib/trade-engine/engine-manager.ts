@@ -24,6 +24,9 @@ const engineGlobal = (typeof globalThis !== "undefined" ? globalThis : {}) as En
 // SOLID: No version-based clearing - engines must remain stable and not restart
 console.log(`[v0] Trade Engine Manager V${_ENGINE_BUILD_VERSION} loading (SOLID - no auto-restart)...`)
 
+// Set the engine version for stale timer detection
+engineGlobal.__engine_version = _ENGINE_BUILD_VERSION
+
 if (typeof globalThis.totalStrategiesEvaluated === "undefined") {
   globalThis.totalStrategiesEvaluated = 0
 }

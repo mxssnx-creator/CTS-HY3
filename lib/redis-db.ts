@@ -240,16 +240,15 @@ export class InlineLocalRedis {
   }
   
   private startTTLCleanup(): void {
-    // DISABLED: Automatic TTL cleanup causing all data to be deleted every 60 seconds
-    // Only run cleanup manually when explicitly requested
-    // const globalCleanup = globalThis as unknown as { __redis_cleanup_started?: boolean }
-    // if (globalCleanup.__redis_cleanup_started) return
-    // globalCleanup.__redis_cleanup_started = true
+    // Periodic cleanup of expired keys to prevent memory leaks
+    const globalCleanup = globalThis as unknown as { __redis_cleanup_started?: boolean }
+    if (globalCleanup.__redis_cleanup_started) return
+    globalCleanup.__redis_cleanup_started = true
     
-    // const ttlCleanupTimer = setInterval(() => {
-    //   this.cleanupExpiredKeys()
-    // }, 60000)
-    // ttlCleanupTimer.unref?.()
+    const ttlCleanupTimer = setInterval(() => {
+      this.cleanupExpiredKeys()
+    }, 60000) // Check every 60 seconds
+    ttlCleanupTimer.unref?.()
   }
   
   private cleanupExpiredKeys(): number {
@@ -274,10 +273,9 @@ export class InlineLocalRedis {
     
     const expireAt = ttlMap.get(key)
     if (expireAt && Date.now() >= expireAt) {
-      // Only delete expired keys during explicit cleanup operations
-      // Not on every read operation!
-      // this.deleteKey(key)
-      // ttlMap.delete(key)
+      // Lazy deletion: actually delete the expired key when accessed
+      this.deleteKey(key)
+      ttlMap.delete(key)
       return true
     }
     return false

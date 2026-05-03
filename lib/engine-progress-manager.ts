@@ -119,10 +119,26 @@ export interface EngineProgressState {
 export class EngineProgressManager {
   private connectionId: string
   private state: EngineProgressState
+  private saveTimer?: ReturnType<typeof setInterval>
+  private dirty = false
+  private readonly SAVE_INTERVAL_MS = 2000 // Save at most every 2 seconds
 
   constructor(connectionId: string) {
     this.connectionId = connectionId
     this.state = this.createInitialState(connectionId)
+    // Start periodic save
+    this.startPeriodicSave()
+  }
+
+  private startPeriodicSave(): void {
+    if (this.saveTimer) {
+      clearInterval(this.saveTimer)
+    }
+    this.saveTimer = setInterval(() => {
+      if (this.dirty) {
+        this.flush().catch(() => {})
+      }
+    }, this.SAVE_INTERVAL_MS)
   }
 
   private createInitialState(connectionId: string): EngineProgressState {
@@ -177,11 +193,19 @@ export class EngineProgressManager {
   }
 
   async saveState(): Promise<void> {
+    // Just mark dirty - actual save happens periodically or on flush()
+    this.dirty = true
+  }
+
+  async flush(): Promise<void> {
+    // Save immediately
+    this.dirty = false
     try {
       const client = getRedisClient()
       const key = `engine_progress:${this.connectionId}`
       await client.set(key, JSON.stringify(this.state), { EX: 86400 }) // 24h TTL
     } catch (error) {
+      this.dirty = true // Mark dirty again so we retry on next periodic save
       console.error(`[ProgressManager] Failed to save state for ${this.connectionId}:`, error)
     }
   }
@@ -200,7 +224,8 @@ export class EngineProgressManager {
       this.state.startedAt = new Date().toISOString()
     }
     this.addLog('info', `Status changed to: ${status}`)
-    await this.saveState()
+    // Force save on status changes
+    await this.flush()
   }
 
   // ============================================
@@ -247,7 +272,8 @@ export class EngineProgressManager {
     if (completed) {
       this.addLog('info', `Prehistoric data complete: ${this.state.prehistoricLoadedSymbols}/${this.state.prehistoricTotalSymbols} symbols, ${this.state.prehistoricTotalCandles} candles`)
     }
-    await this.saveState()
+    // Force save on milestone completion
+    await this.flush()
   }
 
   // ============================================
@@ -391,7 +417,8 @@ export class EngineProgressManager {
       this.state.symbols[symbol].lastError = message
     }
     this.addLog('error', `[${type}] ${message}`, { symbol })
-    await this.saveState()
+    // Force save on errors
+    await this.flush()
   }
 
   // ============================================
@@ -488,7 +515,8 @@ export class EngineProgressManager {
 
   async reset(): Promise<void> {
     this.state = this.createInitialState(this.connectionId)
-    await this.saveState()
+    // Force save on reset
+    await this.flush()
   }
 }
 

@@ -211,14 +211,36 @@ export class GlobalTradeEngineCoordinator {
   private async attemptEngineRestart(connectionId: string, reason: string): Promise<void> {
     const maxRetries = 3
     const baseDelayMs = 5000 // Start with 5 second delay
-
+    
     console.log(`[v0] [Watchdog] Attempting restart for ${connectionId} (reason: ${reason})`)
-
+    
     try {
-      // Get the existing manager or create new one
-      let manager = this.engineManagers.get(connectionId)
+      // Check if coordinator is paused - don't restart if paused
+      if (this.isPaused) {
+        console.log(`[v0] [Watchdog] Skipping restart for ${connectionId} - coordinator is paused`)
+        return
+      }
+
+      // Check if connection is still enabled
+      const { getSettings, getAssignedAndEnabledConnections } = await import("@/lib/redis-db")
+      const connectionSettings = await getSettings(`connection:${connectionId}`).catch(() => null)
       
+      if (!connectionSettings) {
+        console.error(`[v0] [Watchdog] Cannot restart ${connectionId}: connection settings not found`)
+        return
+      }
+      
+      // Verify connection is still assigned and enabled
+      const isAssigned = connectionSettings.is_active_inserted === "1" || connectionSettings.is_active_inserted === true
+      const isEnabled = connectionSettings.is_enabled_dashboard === "1" || connectionSettings.is_enabled_dashboard === true
+      
+      if (!isAssigned || !isEnabled) {
+        console.log(`[v0] [Watchdog] Skipping restart for ${connectionId} - connection no longer active (assigned=${isAssigned}, enabled=${isEnabled})`)
+        return
+      }
+
       // Stop the old manager if it exists
+      let manager = this.engineManagers.get(connectionId)
       if (manager) {
         try {
           await manager.stop()
@@ -227,15 +249,6 @@ export class GlobalTradeEngineCoordinator {
           console.warn(`[v0] [Watchdog] Error stopping crashed engine:`, stopError)
         }
         this.engineManagers.delete(connectionId)
-      }
-
-      // Get connection config
-      const { getSettings } = await import("@/lib/redis-db")
-      const connectionSettings = await getSettings(`connection:${connectionId}`).catch(() => null)
-      
-      if (!connectionSettings) {
-        console.error(`[v0] [Watchdog] Cannot restart ${connectionId}: connection settings not found`)
-        return
       }
 
       // Load settings for engine config
